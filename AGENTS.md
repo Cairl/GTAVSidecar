@@ -178,11 +178,11 @@ _start_anti_afk()   # 启动防挂机线程
 _stop_anti_afk()    # 停止防挂机线程
 ```
 
-- 独立后台线程，每隔 `interval_ms`（默认 600000ms = 10 分钟）向游戏窗口发送指定按键
+- 独立后台线程，每隔 `interval_min`（默认 10 分钟）向游戏窗口发送指定按键
 - 发送按键通过 `key` 配置项控制（默认 `enter`），支持字母键（如 `w`）、数字键（如 `1`）、功能键（如 `f1`、`space`、`tab`）等
 - 使用 `send_key_background` (PostMessage) 实现，不切换游戏到前台
 - 游戏未运行时自动跳过，不发送按键
-- 支持配置热重载：修改 `interval_ms` 后下一周期自动生效
+- 支持配置热重载：修改 `interval_min` 后下一周期自动生效
 - TUI 任务面板首行显示"防挂机"条目，可通过回车键切换启停
 - 配置项位于 `config.json` 的 `anti_afk` 节
 
@@ -1205,7 +1205,7 @@ decrypt_ip_address          # 非游戏用词
     "anti_afk": {
         "enabled": true,
         "key": "enter",
-        "interval_ms": 600000
+        "interval_min": 10
     },
     "vision": {
         "match_threshold": 0.95,
@@ -1250,7 +1250,7 @@ decrypt_ip_address          # 非游戏用词
 | `game_process_name`                    | 游戏进程名                                                                          |
 | `anti_afk.enabled`                     | 防挂机功能开关                                                                       |
 | `anti_afk.key`                         | 防挂机发送的按键 (默认 `enter`)，支持字母键、数字键、功能键等                                  |
-| `anti_afk.interval_ms`                 | 防挂机按键间隔 (默认 600000ms = 10 分钟)                                                 |
+| `anti_afk.interval_min`                | 防挂机按键间隔 (默认 10 分钟)                                                          |
 | `vision.match_threshold`               | 全局匹配置信度阈值 (默认 0.95)                                                            |
 | `vision.alpha_threshold`               | Alpha 通道不透明判定阈值                                                                |
 | `tasks.<key>.match_threshold`          | 任务级阈值，覆盖全局                                                                     |

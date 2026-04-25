@@ -460,7 +460,7 @@ def _anti_afk_loop() -> None:
     while _anti_afk_running:
         config = load_config()
         afk_cfg = config.get("anti_afk", {})
-        interval = afk_cfg.get("interval_ms", 600000) / 1000.0
+        interval = afk_cfg.get("interval_min", 10) * 60.0
         key = afk_cfg.get("key", "enter")
 
         wait_until = time.time() + interval
