@@ -474,7 +474,7 @@ def _anti_afk_loop() -> None:
         if hwnd:
             send_key_background(hwnd, key)
             _log_buffer.add(
-                f"[{translate('task.anti_afk')}] {translate('anti_afk_sent', key=key)}"
+                f"[{translate('task.anti_afk')}] {translate('anti_afk_sent', key_name=key)}"
             )
 
 

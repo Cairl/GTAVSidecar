@@ -55,5 +55,5 @@
     "fatal_error": "致命錯誤: {error}",
     "press_enter_to_exit": "按 Enter 鍵退出...",
     "task.anti_afk": "防掛機",
-    "anti_afk_sent": "已發送按鍵 {key}"
+    "anti_afk_sent": "已發送按鍵 {key_name}"
 }

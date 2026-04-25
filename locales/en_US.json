@@ -55,5 +55,5 @@
     "fatal_error": "FATAL: {error}",
     "press_enter_to_exit": "Press Enter to exit...",
     "task.anti_afk": "Anti-AFK",
-    "anti_afk_sent": "Sent key {key}"
+    "anti_afk_sent": "Sent key {key_name}"
 }

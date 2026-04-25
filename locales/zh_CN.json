@@ -55,5 +55,5 @@
     "fatal_error": "致命错误: {error}",
     "press_enter_to_exit": "按 Enter 键退出...",
     "task.anti_afk": "防挂机",
-    "anti_afk_sent": "已发送按键 {key}"
+    "anti_afk_sent": "已发送按键 {key_name}"
 }
