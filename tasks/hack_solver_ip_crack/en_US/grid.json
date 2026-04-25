@@ -1,0 +1,17 @@
+{
+    "grid": {
+        "origin_x": 931,
+        "origin_y": 822,
+        "col_spacing": 199,
+        "row_spacing": 121,
+        "rows": 8,
+        "cols": 10,
+        "d2_offset_x": 66
+    },
+    "target_ip": {
+        "y": 475,
+        "h": 105,
+        "x_start": 1540,
+        "digit_h_scale": 0.82
+    }
+}
