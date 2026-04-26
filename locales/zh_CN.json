@@ -54,6 +54,6 @@
     "hack_reread_status": "重读: 光标R{cr}C{cc} 目标R{tr}C{tc}",
     "fatal_error": "致命错误: {error}",
     "press_enter_to_exit": "按 Enter 键退出...",
-    "task.anti_afk": "防挂机",
-    "anti_afk_sent": "已发送按键 {key_name}"
+    "task.anti_afk": "防止游戏挂机检测",
+    "anti_afk_sent": "发送按键 {key_name}"
 }

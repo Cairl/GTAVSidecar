@@ -54,6 +54,6 @@
     "hack_reread_status": "Re-read: Cursor R{cr}C{cc} Target R{tr}C{tc}",
     "fatal_error": "FATAL: {error}",
     "press_enter_to_exit": "Press Enter to exit...",
-    "task.anti_afk": "Anti-AFK",
+    "task.anti_afk": "Anti-AFK Detection",
     "anti_afk_sent": "Sent key {key_name}"
 }

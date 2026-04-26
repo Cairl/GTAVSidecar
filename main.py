@@ -451,48 +451,33 @@ def kill_game_process(process_name: str) -> bool:
     return result != 0
 
 
-_anti_afk_running = False
-_anti_afk_thread: threading.Thread | None = None
-
-
-def _anti_afk_loop() -> None:
-    global _anti_afk_running
-    while _anti_afk_running:
-        config = load_config()
-        afk_cfg = config.get("anti_afk", {})
-        interval = afk_cfg.get("interval_min", 10) * 60.0
-        key = afk_cfg.get("key", "enter")
-
-        wait_until = time.time() + interval
-        while _anti_afk_running and time.time() < wait_until:
-            time.sleep(1.0)
-
-        if not _anti_afk_running:
-            break
-
-        hwnd = find_game_window()
-        if hwnd:
-            send_key_background(hwnd, key)
-            _log_buffer.add(
-                f"[{translate('task.anti_afk')}] {translate('anti_afk_sent', key_name=key)}"
-            )
+_anti_afk_task = None
 
 
 def _start_anti_afk() -> None:
-    global _anti_afk_running, _anti_afk_thread
-    if _anti_afk_running:
+    global _anti_afk_task
+    if _anti_afk_task and _anti_afk_task.is_running:
         return
-    _anti_afk_running = True
-    _anti_afk_thread = threading.Thread(target=_anti_afk_loop, daemon=True)
-    _anti_afk_thread.start()
+    if _anti_afk_task is None:
+        mod = _load_task_module("anti_afk")
+        if mod is None:
+            return
+        task_cls = getattr(mod, "Task", None)
+        if task_cls is None:
+            return
+        config = load_config()
+        afk_cfg = config.get("anti_afk", {})
+        task = task_cls("anti_afk", afk_cfg, config)
+        if not task.load():
+            return
+        _anti_afk_task = task
+    _anti_afk_task.start()
 
 
 def _stop_anti_afk() -> None:
-    global _anti_afk_running, _anti_afk_thread
-    _anti_afk_running = False
-    if _anti_afk_thread and _anti_afk_thread.is_alive():
-        _anti_afk_thread.join(timeout=5)
-    _anti_afk_thread = None
+    global _anti_afk_task
+    if _anti_afk_task:
+        _anti_afk_task.stop()
 
 
 class OverlayMatcher:
@@ -1049,7 +1034,9 @@ _INJECT_SYMBOLS = {
     "clip_cursor_to_window": clip_cursor_to_window,
     "unclip_cursor": unclip_cursor,
     "kill_game_process": kill_game_process,
+    "find_game_window": find_game_window,
     "translate": translate,
+    "load_config": load_config,
     "_log_buffer": _log_buffer,
     "_hack_display_update": _hack_display_update,
     "_hack_display_clear": _hack_display_clear,
@@ -1481,9 +1468,10 @@ def main() -> None:
 
             afk_cfg = config.get("anti_afk", {})
             afk_enabled = afk_cfg.get("enabled", False)
-            if afk_enabled and not _anti_afk_running:
+            afk_running = _anti_afk_task is not None and _anti_afk_task.is_running
+            if afk_enabled and not afk_running:
                 _start_anti_afk()
-            elif not afk_enabled and _anti_afk_running:
+            elif not afk_enabled and afk_running:
                 _stop_anti_afk()
 
             for key in list(runners.keys()):
@@ -1509,12 +1497,12 @@ def main() -> None:
                     else:
                         runner._task_cfg = task_cfg
 
-            task_keys = ["anti_afk"] + list(task_cfgs.keys())
+            task_keys = list(task_cfgs.keys()) + ["anti_afk"]
 
             term_h = shutil.get_terminal_size().lines
             term_w = shutil.get_terminal_size().columns
 
-            task_lines = _build_task_panel(task_keys, runners, _anti_afk_running)
+            task_lines = _build_task_panel(task_keys, runners, afk_running)
             task_panel_h = len(task_lines)
 
             grid_lines = _build_grid_panel()
@@ -1552,13 +1540,13 @@ def main() -> None:
                     if task_keys and 0 <= _selected_task_index < len(task_keys):
                         task_key = task_keys[_selected_task_index]
                         if task_key == "anti_afk":
-                            if _anti_afk_running:
+                            if _anti_afk_task and _anti_afk_task.is_running:
                                 _stop_anti_afk()
                             else:
                                 _start_anti_afk()
                             if "anti_afk" not in config:
                                 config["anti_afk"] = {}
-                            config["anti_afk"]["enabled"] = _anti_afk_running
+                            config["anti_afk"]["enabled"] = _anti_afk_task is not None and _anti_afk_task.is_running
                             save_config(config)
                         else:
                             runner = runners.get(task_key)

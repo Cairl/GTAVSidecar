@@ -1,7 +1,7 @@
 # GTAVSidecar 技术报告
 
 **日期**: 2026-04-26
-**阶段**: 电压连线边框盒回显 + 累计数动画 + 闪烁并行
+**阶段**: 防止游戏挂机检测功能 (Anti-AFK)
 
 ***
 
@@ -71,6 +71,8 @@ GTAVSidecar/
 │           ├── 0.png ~ 9.png
 │           ├── x1.png, x2.png, x10.png
 │           └── grid.json
+│   └── anti_afk/
+│       └── task.py      # Task(BaseTask) 防挂机定时按键
 └── .agents_logs/
 ```
 
@@ -160,7 +162,7 @@ unclip_cursor()              # 解锁鼠标
 ### 后台键盘输入 (PostMessage)
 
 ```python
-send_key_background(hwnd, key)  # key: "enter"/"space"/"esc"/"tab"
+send_key_background(hwnd, key)  # key: "enter"/"space"/"w"/"f1" 等
 ```
 
 - 使用 `PostMessageW` 向指定窗口发送 `WM_KEYDOWN`/`WM_KEYUP` 消息
@@ -168,22 +170,28 @@ send_key_background(hwnd, key)  # key: "enter"/"space"/"esc"/"tab"
 - 通过 `MapVirtualKeyW` 获取扫描码，构造标准 lParam（含扫描码、扩展键标志、重复计数）
 - 扩展键（方向键、Insert、Delete 等）自动设置 bit 24 扩展键标志
 - KEYDOWN 和 KEYUP 间隔 50ms
-- **适用场景**: 防挂机检测等不需要游戏实际响应按键的场景
-- **限制**: RAGE 引擎使用 DirectInput 读取键盘，PostMessage 发送的 WM_KEYDOWN 不会被游戏作为操作输入处理（与踩坑 #2 同理），但可能重置游戏的 AFK 计时器
+- 支持命名键（`enter`/`space`/`tab`/`esc`/`up`/`down`/`f1`~`f12` 等）、单字母（`w`/`a`/`s`/`d`）、单数字（`1`~`9`）
+- **限制**: RAGE 引擎使用 DirectInput 读取键盘，PostMessage 发送的 WM_KEYDOWN 不会被游戏作为操作输入处理（与踩坑 #28 同理）
 
-### 防挂机 (Anti-AFK)
+### 防止游戏挂机检测 (Anti-AFK)
+
+**位置**: `tasks/anti_afk/task.py`
 
 ```python
-_start_anti_afk()   # 启动防挂机线程
-_stop_anti_afk()    # 停止防挂机线程
+class Task(BaseTask):
+    group = None
+    start_trigger = {}
+    steps = []
 ```
 
-- 独立后台线程，每隔 `interval_min`（默认 10 分钟）向游戏窗口发送指定按键
+- 独立后台线程，仅在游戏窗口处于后台时计时，累计时间达到 `interval_min` 后将游戏切至前台发送按键
 - 发送按键通过 `key` 配置项控制（默认 `enter`），支持字母键（如 `w`）、数字键（如 `1`）、功能键（如 `f1`、`space`、`tab`）等
-- 使用 `send_key_background` (PostMessage) 实现，不切换游戏到前台
+- 使用 `SendInput` + 扫描码（`send_key`）实现，将游戏切至前台发送按键后**不切回**原窗口
 - 游戏未运行时自动跳过，不发送按键
-- 支持配置热重载：修改 `interval_min` 后下一周期自动生效
-- TUI 任务面板首行显示"防挂机"条目，可通过回车键切换启停
+- 游戏在前台时计时器归零，不触发按键
+- 支持配置热重载：修改 `interval_min` 或 `key` 后下一周期自动生效
+- TUI 任务面板末行显示"防止游戏挂机检测"条目，可通过回车键切换启停
+- 日志中按键名以黄色方括号显示，如 `发送按键 [W]`
 - 配置项位于 `config.json` 的 `anti_afk` 节
 
 ### 任务基类 (BaseTask)
@@ -1172,9 +1180,9 @@ decrypt_ip_address          # 非游戏用词
 
 **解决**:
 
-- 游戏操作仍使用 `SendInput` + 硬件扫描码（`send_key`），需窗口在前台
-- 防挂机场景使用 `PostMessageW`（`send_key_background`），虽不被游戏作为操作输入处理，但可能重置 Windows 级别的 AFK 计时器
-- 若 PostMessage 无法重置 GTA5 的 AFK 计时器（服务端检测），则需回退到 `SendInput` 方案（需前台切换）
+- 防挂机功能改用 `SendInput` + 硬件扫描码（`send_key`），将游戏短暂切至前台发送按键
+- 切前台后不切回原窗口，让游戏保持前台
+- 仅在游戏处于后台时计时，游戏在前台时计时器归零，避免不必要的切换
 
 ### 29. 电压连线回显扁平日志改为边框盒 + 动画并行
 
@@ -1272,11 +1280,12 @@ decrypt_ip_address          # 非游戏用词
 TUI 渲染效果:
 
 ```
-  ☐  防挂机
   ☐  地堡点击加速研究
   ☐  结算界面结束游戏
   黑客游戏自动破解
+    └─ ☐  电压连线
     └─ ☐  网络地址
+  ☐  防止游戏挂机检测
 ```
 
 ***
