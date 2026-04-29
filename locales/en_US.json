@@ -24,7 +24,6 @@
     "hack_completed": "Hack complete",
     "hack_game_over": "Game over",
     "hack_resetting": "Resetting game",
-    "step_timeout_reset": "{name} timeout ({count}x), resetting",
 
 
     "step.trigger.bunker_fast_track_research": "Click|Fast-track Research",

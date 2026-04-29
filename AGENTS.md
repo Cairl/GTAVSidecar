@@ -1321,6 +1321,35 @@ TUI 渲染效果:
 
 ## 变更记录
 
+### 26w18c (2026-04-30)
+
+**修改范围**: `main.py` — 标题边框颜色统一、性能显示安全边距；`tasks/hack_solver_ip_crack/task.py` — IP→Host 术语替换；`tasks/hack_solver_ip_crack/*/grid.json` — `target_ip`→`target_host`；`locales/*.json` — 翻译文本更新
+
+**修改原因**: 游戏内实际显示为"Host"而非"IP"，术语不一致导致用户困惑。超时回显包含多余的动作名称和次数信息，不够简洁。标题行边框颜色存在混搭，性能信息紧贴边框缺少安全边距。
+
+**修改内容**:
+
+- `task.py`: `_read_target_ip` 重命名为 `_read_target_host`，所有相关变量名同步更新
+- `grid.json`（三语言）: `target_ip` 键名改为 `target_host`
+- `locales/*.json`: `hack_target_read_failed` 改为"目标 Host 读取失败"，`hack_target_detected` 改为"目标 Host: {target}"
+- `locales/zh_CN.json` + `zh_TW.json`: `step_timeout` 改为"监控超时，重新监控"，`step_timeout_reset` 改为"监控超时，结束监控"
+- `locales/en_US.json`: `step_timeout` 改为"Monitor timeout, restarting"，`step_timeout_reset` 改为"Monitor timeout, ending monitor"
+- `main.py`: 标题行 `C_RESET` 后的空格前插入 `border_color`，统一边框颜色
+- `main.py`: 性能显示从 `_rpad_to_width(" " + status_text + " ", inner_w)` 改为 `" " + _rpad_to_width(status_text, inner_w - 2) + " "`，确保左右各至少 1 字符安全边距
+
+**修改前后行为差异**:
+
+| 场景 | 修改前 | 修改后 |
+|------|--------|--------|
+| 目标读取失败 | "目标 IP 读取失败" | "目标 Host 读取失败" |
+| 目标检测成功 | "目标 IP: XX.XX.XX.XX" | "目标 Host: XX.XX.XX.XX" |
+| 超时重试 | "正在|破解 超时，重新监控" | "监控超时，重新监控" |
+| 超时结束 | "正在|破解 超时 3 次，重置任务流" | "监控超时，结束监控" |
+| 标题行边框 | 空格处颜色为默认终端色 | 空格处颜色与边框统一 |
+| 性能信息 | 紧贴右侧边框 | 左右各保留 1 字符安全边距 |
+
+**对系统影响范围**: 仅影响显示文本和 TUI 布局，不改变任何任务检测或执行逻辑
+
 ### 26w18b (2026-04-29)
 
 **修改范围**: `main.py` — 新增状态显示器；`locales/*.json` — 新增翻译键
