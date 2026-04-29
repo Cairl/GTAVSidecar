@@ -1321,6 +1321,32 @@ TUI 渲染效果:
 
 ## 变更记录
 
+### 26w18b (2026-04-29)
+
+**修改范围**: `main.py` — 新增状态显示器；`locales/*.json` — 新增翻译键
+
+**修改原因**: 游戏更新后原有识别功能失效，用户无法直观判断程序是否正常连接游戏。需要在界面顶部增加状态显示器，显示游戏连接状态和程序资源占用，方便排查问题。
+
+**修改内容**:
+
+- 新增 `_FILETIME`、`_PROCESS_MEMORY_COUNTERS` 结构体，用于 Windows API 调用
+- 新增 `_get_process_cpu_percent()`：通过 `GetProcessTimes` 两次采样计算 CPU 占用率
+- 新增 `_get_process_memory_mb()`：通过 `GetProcessMemoryInfo` 获取工作集内存
+- 新增 `_get_game_status()`：三态判定游戏进程状态（未运行/无窗口/已连接）
+- 修改 `_build_task_panel()`：在标题行下方插入状态行和分隔线，显示游戏连接状态、CPU、内存、线程数
+- 修改 `main()` 主循环：每 3 秒检测游戏状态，每轮更新 CPU 采样
+- 新增 6 个 i18n 翻译键（`status_connected`/`status_not_running`/`status_no_window`/`status_cpu`/`status_memory`/`status_threads`）
+
+**修改前后行为差异**:
+
+| 场景 | 修改前 | 修改后 |
+|------|--------|--------|
+| 任务面板 | 仅显示任务列表 | 标题下方新增状态行，显示游戏连接和资源信息 |
+| 游戏未运行 | 无直观提示 | 红色圆圈 + "未运行" |
+| 游戏运行中 | 无直观提示 | 绿色圆点 + "已连接" |
+
+**对系统影响范围**: 仅影响 TUI 显示层，不改变任何任务检测或执行逻辑
+
 ### 26w18a (2026-04-27)
 
 **修改范围**: `main.py` — `load_config()` 及新增 `_build_default_config()`

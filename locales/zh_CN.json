@@ -7,7 +7,7 @@
     "process_killed": "已成功退出游戏",
     "process_kill_failed": "退出游戏失败",
     "sequence_done": "序列完成",
-    "step_timeout": "{name} 超时，重新监控",
+    "step_timeout": "监控超时，重新监控",
     "config_reloaded": "配置已热更新",
     "overlay_load_failed": "{overlay}: {error}",
     "task.bunker_fast_track_research": "地堡点击加速研究",
@@ -15,15 +15,15 @@
     "task.hack_solver_voltlab": "电压连线",
     "group.hack_solver": "黑客游戏自动破译",
     "hack_capture_failed": "截屏失败",
-    "hack_target_read_failed": "目标 IP 读取失败",
+    "hack_target_read_failed": "目标 Host 读取失败",
     "hack_target_not_found": "未在网格中找到目标",
-    "hack_target_detected": "目标 IP: {target}",
+    "hack_target_detected": "目标 Host: {target}",
     "hack_target_found": "目标位于位置 {pos}",
     "hack_executing": "执行按键: {keys}",
     "hack_completed": "破解完成",
     "hack_game_over": "游戏结束",
     "hack_resetting": "重置游戏",
-    "step_timeout_reset": "{name} 超时 {count} 次，重置任务流",
+    "step_timeout_reset": "监控超时，结束监控",
 
 
     "step.trigger.bunker_fast_track_research": "点击|加速研究",
@@ -55,5 +55,10 @@
     "fatal_error": "致命错误: {error}",
     "press_enter_to_exit": "按 Enter 键退出...",
     "task.anti_afk": "防止游戏挂机检测",
-    "anti_afk_sent": "发送按键 {key_name}"
+    "anti_afk_sent": "发送按键 {key_name}",
+    "status_connected": "已连接",
+    "status_not_running": "未运行",
+    "status_no_window": "无窗口",
+    "status_cpu": "CPU",
+    "status_memory": "内存"
 }

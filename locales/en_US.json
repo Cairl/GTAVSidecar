@@ -7,7 +7,8 @@
     "process_killed": "Game closed successfully",
     "process_kill_failed": "Failed to close game",
     "sequence_done": "Done",
-    "step_timeout": "{name} timeout, restarting",
+    "step_timeout": "Monitor timeout, restarting",
+    "step_timeout_reset": "Monitor timeout, ending monitor",
     "config_reloaded": "Config reloaded",
     "overlay_load_failed": "{overlay}: {error}",
     "task.bunker_fast_track_research": "Bunker Fast-track Research",
@@ -15,9 +16,9 @@
     "task.hack_solver_voltlab": "Voltlab",
     "group.hack_solver": "Hack Solver",
     "hack_capture_failed": "Capture failed",
-    "hack_target_read_failed": "Failed to read target IP",
+    "hack_target_read_failed": "Failed to read target Host",
     "hack_target_not_found": "Target not found",
-    "hack_target_detected": "Target IP: {target}",
+    "hack_target_detected": "Target Host: {target}",
     "hack_target_found": "Target at position {pos}",
     "hack_executing": "Executing: {keys}",
     "hack_completed": "Hack complete",
@@ -55,5 +56,10 @@
     "fatal_error": "FATAL: {error}",
     "press_enter_to_exit": "Press Enter to exit...",
     "task.anti_afk": "Anti-AFK Detection",
-    "anti_afk_sent": "Sent key {key_name}"
+    "anti_afk_sent": "Sent key {key_name}",
+    "status_connected": "Connected",
+    "status_not_running": "Not Running",
+    "status_no_window": "No Window",
+    "status_cpu": "CPU",
+    "status_memory": "Memory"
 }

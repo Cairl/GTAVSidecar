@@ -51,7 +51,7 @@ class HackingSolver:
         self._scan_interval = scan_ms / 1000.0
         self._digit_templates = []
         self._grid_cfg = {}
-        self._ip_cfg = {}
+        self._host_cfg = {}
         self._trigger_matcher = None
         self._fail_matcher = None
 
@@ -106,7 +106,7 @@ class HackingSolver:
         with open(grid_json, "r", encoding="utf-8") as f:
             cfg = json.load(f)
         self._grid_cfg = cfg["grid"]
-        self._ip_cfg = cfg["target_ip"]
+        self._host_cfg = cfg["target_host"]
 
         alpha_threshold = 128
         self._digit_templates = []
@@ -337,27 +337,27 @@ class HackingSolver:
 
         return grid, cursor_pos, low_conf_cells
 
-    def _read_target_ip(self, image, offset):
+    def _read_target_host(self, image, offset):
         ox, oy = offset
-        ip_y = self._ip_cfg["y"] + oy
-        ip_h = self._ip_cfg["h"]
-        x_start = self._ip_cfg["x_start"] + ox
+        host_y = self._host_cfg["y"] + oy
+        host_h = self._host_cfg["h"]
+        x_start = self._host_cfg["x_start"] + ox
 
-        ip_region = image[ip_y:ip_y + ip_h, x_start:x_start + 900]
-        if ip_region.size == 0:
+        host_region = image[host_y:host_y + host_h, x_start:x_start + 900]
+        if host_region.size == 0:
             return [], []
 
         ref_h = self._digit_templates[0]["h"]
 
-        ip_bright = np.max(ip_region, axis=2)
-        _, ip_bin = cv2.threshold(ip_bright, 60, 255, cv2.THRESH_BINARY)
+        host_bright = np.max(host_region, axis=2)
+        _, host_bin = cv2.threshold(host_bright, 60, 255, cv2.THRESH_BINARY)
 
-        num_labels, _, stats, _ = cv2.connectedComponentsWithStats(ip_bin, connectivity=8)
+        num_labels, _, stats, _ = cv2.connectedComponentsWithStats(host_bin, connectivity=8)
 
         digit_components = []
         for i in range(1, num_labels):
             x, y, w, h, area = stats[i]
-            if area > 50 and h > ip_h * 0.3:
+            if area > 50 and h > host_h * 0.3:
                 digit_components.append({"x": x, "y": y, "w": w, "h": h})
 
         rows_dict = {}
@@ -365,7 +365,7 @@ class HackingSolver:
             cy = comp["y"] + comp["h"] // 2
             placed = False
             for key in list(rows_dict.keys()):
-                if abs(cy - key) < ip_h * 0.4:
+                if abs(cy - key) < host_h * 0.4:
                     rows_dict[key].append(comp)
                     placed = True
                     break
@@ -374,8 +374,8 @@ class HackingSolver:
 
         sorted_rows = sorted(rows_dict.items(), key=lambda x: x[0])
 
-        ip_values = []
-        ip_confs = []
+        host_values = []
+        host_confs = []
         for _, row_comps in sorted_rows:
             row_comps.sort(key=lambda c: c["x"])
             for comp in row_comps:
@@ -383,7 +383,7 @@ class HackingSolver:
                 dx_end = comp["x"] + comp["w"]
                 dy_start = comp["y"]
                 dy_end = comp["y"] + comp["h"]
-                digit_region = ip_region[dy_start:dy_end, dx_start:dx_end]
+                digit_region = host_region[dy_start:dy_end, dx_start:dx_end]
                 if digit_region.size == 0:
                     continue
 
@@ -421,13 +421,13 @@ class HackingSolver:
                         best_digit = d_info["digit"]
 
                 if best_digit >= 0:
-                    ip_values.append(best_digit)
-                    ip_confs.append(best_conf)
+                    host_values.append(best_digit)
+                    host_confs.append(best_conf)
 
         result = []
-        for i in range(0, len(ip_values) - 1, 2):
-            result.append(ip_values[i] * 10 + ip_values[i + 1])
-        return result, ip_confs
+        for i in range(0, len(host_values) - 1, 2):
+            result.append(host_values[i] * 10 + host_values[i + 1])
+        return result, host_confs
 
     def _find_target_in_grid(self, target, grid):
         for pos in range(self.TOTAL_CELLS):
@@ -508,7 +508,7 @@ class HackingSolver:
 
         offset = get_client_offset(hwnd)
 
-        target, ip_confs = self._read_target_ip(image, offset)
+        target, host_confs = self._read_target_host(image, offset)
         if len(target) < self.CURSOR_LEN:
             if self._check_fail(hwnd, offset):
                 return "reset"

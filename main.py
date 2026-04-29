@@ -149,6 +149,28 @@ class _PROCESSENTRY32W(ctypes.Structure):
     ]
 
 
+class _FILETIME(ctypes.Structure):
+    _fields_ = [
+        ("dwLowDateTime", ctypes.wintypes.DWORD),
+        ("dwHighDateTime", ctypes.wintypes.DWORD),
+    ]
+
+
+class _PROCESS_MEMORY_COUNTERS(ctypes.Structure):
+    _fields_ = [
+        ("cb", ctypes.wintypes.DWORD),
+        ("PageFaultCount", ctypes.wintypes.DWORD),
+        ("PeakWorkingSetSize", ctypes.c_size_t),
+        ("WorkingSetSize", ctypes.c_size_t),
+        ("QuotaPeakPagedPoolUsage", ctypes.c_size_t),
+        ("QuotaPagedPoolUsage", ctypes.c_size_t),
+        ("QuotaPeakNonPagedPoolUsage", ctypes.c_size_t),
+        ("QuotaNonPagedPoolUsage", ctypes.c_size_t),
+        ("PagefileUsage", ctypes.c_size_t),
+        ("PeakPagefileUsage", ctypes.c_size_t),
+    ]
+
+
 class _KEYBDINPUT(ctypes.Structure):
     _fields_ = [
         ("wVk", ctypes.wintypes.WORD),
@@ -1043,6 +1065,30 @@ _log_buffer = _LogBuffer()
 _hack_display: dict = {}
 _hack_display_lock = threading.Lock()
 
+_process_cpu_state: dict = {
+    "last_time": 0.0,
+    "last_process_time": 0,
+    "cpu_percent": 0.0,
+    "last_sample_time": 0.0,
+    "mem_mb": 0.0,
+}
+
+ctypes.windll.kernel32.GetCurrentProcess.restype = ctypes.wintypes.HANDLE
+ctypes.windll.kernel32.GetProcessTimes.restype = ctypes.wintypes.BOOL
+ctypes.windll.kernel32.GetProcessTimes.argtypes = [
+    ctypes.wintypes.HANDLE,
+    ctypes.POINTER(_FILETIME),
+    ctypes.POINTER(_FILETIME),
+    ctypes.POINTER(_FILETIME),
+    ctypes.POINTER(_FILETIME),
+]
+ctypes.windll.psapi.GetProcessMemoryInfo.restype = ctypes.wintypes.BOOL
+ctypes.windll.psapi.GetProcessMemoryInfo.argtypes = [
+    ctypes.wintypes.HANDLE,
+    ctypes.POINTER(_PROCESS_MEMORY_COUNTERS),
+    ctypes.wintypes.DWORD,
+]
+
 
 def _hack_display_update(**kwargs) -> None:
     with _hack_display_lock:
@@ -1052,6 +1098,61 @@ def _hack_display_update(**kwargs) -> None:
 def _hack_display_clear() -> None:
     with _hack_display_lock:
         _hack_display.clear()
+
+
+def _sample_process_resources() -> None:
+    now = time.time()
+    state = _process_cpu_state
+    if now - state["last_sample_time"] < 2.0:
+        return
+    state["last_sample_time"] = now
+
+    process = ctypes.windll.kernel32.GetCurrentProcess()
+
+    creation_time = _FILETIME()
+    exit_time = _FILETIME()
+    kernel_time = _FILETIME()
+    user_time = _FILETIME()
+    result = ctypes.windll.kernel32.GetProcessTimes(
+        process,
+        ctypes.byref(creation_time),
+        ctypes.byref(exit_time),
+        ctypes.byref(kernel_time),
+        ctypes.byref(user_time),
+    )
+    if result:
+        process_time = (kernel_time.dwHighDateTime << 32 | kernel_time.dwLowDateTime) + \
+                       (user_time.dwHighDateTime << 32 | user_time.dwLowDateTime)
+        if state["last_time"] == 0.0:
+            state["last_time"] = now
+            state["last_process_time"] = process_time
+        else:
+            wall_delta = now - state["last_time"]
+            if wall_delta >= 0.001:
+                process_delta = process_time - state["last_process_time"]
+                state["cpu_percent"] = min(process_delta / (wall_delta * 10_000_000) * 100, 100.0)
+            state["last_time"] = now
+            state["last_process_time"] = process_time
+
+    counters = _PROCESS_MEMORY_COUNTERS()
+    counters.cb = ctypes.sizeof(_PROCESS_MEMORY_COUNTERS)
+    result = ctypes.windll.psapi.GetProcessMemoryInfo(
+        process,
+        ctypes.byref(counters),
+        counters.cb,
+    )
+    if result:
+        state["mem_mb"] = counters.WorkingSetSize / (1024 * 1024)
+
+
+def _get_game_status() -> str:
+    pid = _find_pid_by_name(GAME_PROCESS_NAME)
+    if pid is None:
+        return "not_running"
+    hwnd = find_game_window(GAME_PROCESS_NAME)
+    if hwnd is None:
+        return "no_window"
+    return "connected"
 
 
 _INJECT_SYMBOLS = {
@@ -1269,43 +1370,33 @@ class TaskRunner:
                         time.sleep(0.1)
                 else:
                     self._timeout_count += 1
-                    step_name = self._task._step_names[step_index]
-                    step_key = f"step.{step_name}.{self._task_name}"
-                    step_display = translate(step_key)
-                    if step_display == step_key:
-                        step_display = step_name
                     if self._timeout_count >= 3:
                         _log_buffer.add(
-                            f"[{display_name}] {C_RED}{translate('step_timeout_reset', name=f'{C_YELLOW}{step_display}{C_RESET}', count=self._timeout_count)}{C_RESET}"
+                            f"[{display_name}] {C_RED}{translate('step_timeout_reset')}{C_RESET}"
                         )
                         self._sequence_started = False
                         self._timeout_count = 0
                         step_index = 0
                     else:
                         _log_buffer.add(
-                            f"[{display_name}] {C_YELLOW}{translate('step_timeout', name=f'{C_YELLOW}{step_display}{C_RESET}', count=self._timeout_count)}{C_RESET}"
+                            f"[{display_name}] {C_YELLOW}{translate('step_timeout')}{C_RESET}"
                         )
                         step_index = 0
                     step_start = time.time()
             else:
                 if step_index > 0 and time.time() - step_start > step_timeout:
-                    step_name = self._task._step_names[step_index]
-                    step_key = f"step.{step_name}.{self._task_name}"
-                    step_display = translate(step_key)
-                    if step_display == step_key:
-                        step_display = step_name
                     self._timeout_count += 1
 
                     if self._timeout_count >= 3:
                         _log_buffer.add(
-                            f"[{display_name}] {translate('step_timeout_reset', name=f'{C_YELLOW}{step_display}{C_RESET}', count=self._timeout_count)}"
+                            f"[{display_name}] {translate('step_timeout_reset')}"
                         )
                         self._sequence_started = False
                         self._timeout_count = 0
                         step_index = 0
                     else:
                         _log_buffer.add(
-                            f"[{display_name}] {translate('step_timeout', name=f'{C_YELLOW}{step_display}{C_RESET}', count=self._timeout_count)}"
+                            f"[{display_name}] {translate('step_timeout')}"
                         )
                         step_index = 0
 
@@ -1340,6 +1431,13 @@ def _pad_to_width(s: str, width: int) -> str:
     return s + " " * (width - visible_len)
 
 
+def _rpad_to_width(s: str, width: int) -> str:
+    visible_len = _visible_len(s)
+    if visible_len >= width:
+        return s
+    return " " * (width - visible_len) + s
+
+
 def _color_step(text: str) -> str:
     if "|" in text:
         action, detail = text.split("|", 1)
@@ -1350,7 +1448,7 @@ def _color_step(text: str) -> str:
 _selected_task_index = 0
 
 
-def _build_task_panel(task_keys: list[str], runners: dict[str, TaskRunner], anti_afk_running: bool = False) -> list[str]:
+def _build_task_panel(task_keys: list[str], runners: dict[str, TaskRunner], anti_afk_running: bool = False, game_status: str = "not_running") -> list[str]:
     border_color = f"{C_BORDER}"
     reset_color = C_RESET
     title = translate("app_title")
@@ -1404,11 +1502,26 @@ def _build_task_panel(task_keys: list[str], runners: dict[str, TaskRunner], anti
     title_min_width = len(title) + PAD * 2 + 2
     inner_w = max(inner_w, title_min_width)
 
+    status_colors = {
+        "connected": C_GREEN,
+        "not_running": C_RED,
+        "no_window": C_YELLOW,
+    }
+    sc = status_colors.get(game_status, C_RED)
+    cpu_pct = _process_cpu_state["cpu_percent"]
+    mem_mb = _process_cpu_state["mem_mb"]
+    status_text = (
+        f"{translate('status_cpu')} {cpu_pct:.1f}%"
+        f"  {translate('status_memory')} {mem_mb:.1f}MB"
+    )
+    status_visible_w = _visible_len(status_text)
+    inner_w = max(inner_w, status_visible_w + PAD * 2 + 2)
+
     lines: list[str] = []
     title_pad = inner_w - len(title) - 2
     left_dashes = min(3, title_pad // 2)
     right_dashes = title_pad - left_dashes
-    lines.append(f"{border_color}{BORDER_TL}{BORDER_H * left_dashes} {title} {BORDER_H * right_dashes}{BORDER_TR}{reset_color}")
+    lines.append(f"{border_color}{BORDER_TL}{BORDER_H * left_dashes} {sc}{title}{C_RESET} {border_color}{BORDER_H * right_dashes}{BORDER_TR}{reset_color}")
 
     lines.append(f"{border_color}{BORDER_V}{reset_color}{' ' * inner_w}{border_color}{BORDER_V}{reset_color}")
 
@@ -1421,6 +1534,12 @@ def _build_task_panel(task_keys: list[str], runners: dict[str, TaskRunner], anti
             lines.append(f"{border_color}{BORDER_V}{reset_color}{padded}{border_color}{BORDER_V}{reset_color}")
 
     lines.append(f"{border_color}{BORDER_V}{reset_color}{' ' * inner_w}{border_color}{BORDER_V}{reset_color}")
+
+    lines.append(f"{border_color}{BORDER_V}{BORDER_H * inner_w}{BORDER_V}{reset_color}")
+
+    status_padded = _rpad_to_width(" " + status_text + " ", inner_w)
+    lines.append(f"{border_color}{BORDER_V}{reset_color}{status_padded}{border_color}{BORDER_V}{reset_color}")
+
     lines.append(f"{border_color}{BORDER_BL}{BORDER_H * inner_w}{BORDER_BR}{reset_color}")
     return lines
 
@@ -1488,6 +1607,8 @@ def main() -> None:
     runners: dict[str, TaskRunner] = {}
     last_render_lines: list[str] = []
     last_lang = game_lang
+    game_status = "not_running"
+    game_status_check_time = 0.0
 
     try:
         while True:
@@ -1532,10 +1653,16 @@ def main() -> None:
 
             task_keys = list(task_cfgs.keys()) + ["anti_afk"]
 
+            now = time.time()
+            _sample_process_resources()
+            if now - game_status_check_time > 3.0:
+                game_status = _get_game_status()
+                game_status_check_time = now
+
             term_h = shutil.get_terminal_size().lines
             term_w = shutil.get_terminal_size().columns
 
-            task_lines = _build_task_panel(task_keys, runners, afk_running)
+            task_lines = _build_task_panel(task_keys, runners, afk_running, game_status)
             task_panel_h = len(task_lines)
 
             grid_lines = _build_grid_panel()

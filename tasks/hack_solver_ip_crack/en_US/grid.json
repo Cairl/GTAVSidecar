@@ -8,7 +8,7 @@
         "cols": 10,
         "d2_offset_x": 66
     },
-    "target_ip": {
+    "target_host": {
         "y": 475,
         "h": 105,
         "x_start": 1540,
