@@ -1521,7 +1521,7 @@ def _build_task_panel(task_keys: list[str], runners: dict[str, TaskRunner], anti
     title_pad = inner_w - len(title) - 2
     left_dashes = min(3, title_pad // 2)
     right_dashes = title_pad - left_dashes
-    lines.append(f"{border_color}{BORDER_TL}{BORDER_H * left_dashes} {sc}{title}{C_RESET} {border_color}{BORDER_H * right_dashes}{BORDER_TR}{reset_color}")
+    lines.append(f"{border_color}{BORDER_TL}{BORDER_H * left_dashes} {sc}{title}{C_RESET}{border_color} {BORDER_H * right_dashes}{BORDER_TR}{reset_color}")
 
     lines.append(f"{border_color}{BORDER_V}{reset_color}{' ' * inner_w}{border_color}{BORDER_V}{reset_color}")
 
@@ -1537,7 +1537,7 @@ def _build_task_panel(task_keys: list[str], runners: dict[str, TaskRunner], anti
 
     lines.append(f"{border_color}{BORDER_V}{BORDER_H * inner_w}{BORDER_V}{reset_color}")
 
-    status_padded = _rpad_to_width(" " + status_text + " ", inner_w)
+    status_padded = " " + _rpad_to_width(status_text, inner_w - 2) + " "
     lines.append(f"{border_color}{BORDER_V}{reset_color}{status_padded}{border_color}{BORDER_V}{reset_color}")
 
     lines.append(f"{border_color}{BORDER_BL}{BORDER_H * inner_w}{BORDER_BR}{reset_color}")
