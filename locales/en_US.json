@@ -55,6 +55,7 @@
     "fatal_error": "FATAL: {error}",
     "press_enter_to_exit": "Press Enter to exit...",
     "task.anti_afk": "Anti-AFK Detection",
+    "task.create_invite_only": "Create Invite-Only Session",
     "anti_afk_sent": "Sent key {key_name}",
     "status_connected": "Connected",
     "status_not_running": "Not Running",

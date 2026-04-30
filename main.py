@@ -357,6 +357,7 @@ def click_at(screen_x: int, screen_y: int) -> None:
 
 _KEY_MAP = {
     "w": 0x11, "a": 0x1E, "s": 0x1F, "d": 0x20,
+    "esc": 0x01,
     "enter": 0x1C,
     "up": 0x48, "down": 0x50, "left": 0x4B, "right": 0x4D,
 }
@@ -639,6 +640,8 @@ class BaseTask:
         self._start_trigger_name: str = ""
         self._start_trigger_scan: bool = False
         self._start_trigger_click: bool = True
+        self._is_key_sequence = False
+        self._key_steps: list[dict] = []
 
     def _resolve_overlay(self, overlay: str, lang: str) -> str:
         base = os.path.join(BASE_DIR, "tasks", self._task_name)
@@ -671,6 +674,15 @@ class BaseTask:
 
         start_trigger_cfg = self.start_trigger
         steps = self.steps
+
+        if not start_trigger_cfg and steps and all("delay" in s for s in steps):
+            self._is_key_sequence = True
+            self._key_steps = steps
+            self._matchers = []
+            self._step_names = []
+            self._step_scans = []
+            self._step_actions = []
+            return True
 
         if not start_trigger_cfg or steps is None:
             _log_buffer.add(
@@ -806,6 +818,8 @@ class BaseTask:
         self._start_trigger_name = ""
         self._start_trigger_scan = False
         self._start_trigger_click = True
+        self._is_key_sequence = False
+        self._key_steps = []
         self.load()
 
     def read_timing(self):
@@ -818,11 +832,34 @@ class BaseTask:
 
     @property
     def step_count(self):
+        if self._is_key_sequence:
+            return len(self._key_steps)
         return len(self._matchers)
 
     @property
     def has_start_trigger(self):
-        return self._start_trigger_matcher is not None
+        return self._start_trigger_matcher is not None or self._is_key_sequence
+
+    def execute_key_sequence(self, hwnd: int) -> None:
+        display_name = translate(f"task.{self._task_name}")
+        _log_buffer.add(f"[{display_name}] {C_BLUE}聚焦窗口...{C_RESET}")
+        bring_to_foreground(hwnd)
+        time.sleep(0.3)
+        rect = _RECT()
+        ctypes.windll.user32.GetWindowRect(hwnd, ctypes.byref(rect))
+        center_x = (rect.left + rect.right) // 2
+        center_y = (rect.top + rect.bottom) // 2
+        click_at(center_x, center_y)
+        time.sleep(0.5)
+        for step in self._key_steps:
+            time.sleep(step["delay"] / 1000.0)
+            repeat = step.get("repeat", 1)
+            key = step["key"]
+            label = f"{key} x{repeat}" if repeat > 1 else key
+            _log_buffer.add(f"[{display_name}] {C_YELLOW}按 {label}{C_RESET}")
+            for _ in range(repeat):
+                send_key(key)
+        _log_buffer.add(f"[{display_name}] {C_GREEN}已完成{C_RESET}")
 
 
 _STEAM_LANG_MAP = {
@@ -1310,6 +1347,18 @@ class TaskRunner:
                 hwnd_check_time = now
 
             if hwnd is None:
+                if self._task._is_key_sequence and not self._sequence_started:
+                    _log_buffer.add(
+                        f"[{display_name}] {C_RED}游戏窗口未找到，无法执行{C_RESET}"
+                    )
+                    cfg = load_config()
+                    task_cfg = _get_task_config(cfg, self._task_name)
+                    if task_cfg:
+                        task_cfg["enabled"] = False
+                        save_config(cfg)
+                    self._running = False
+                    self._status = "stopped"
+                    continue
                 if self._status != "paused":
                     self._status = "paused"
                 time.sleep(2)
@@ -1317,6 +1366,17 @@ class TaskRunner:
 
             if self._status != "running":
                 self._status = "running"
+
+            if not self._sequence_started and self._task._is_key_sequence:
+                self._task.execute_key_sequence(hwnd)
+                cfg = load_config()
+                task_cfg = _get_task_config(cfg, self._task_name)
+                if task_cfg:
+                    task_cfg["enabled"] = False
+                    save_config(cfg)
+                self._running = False
+                self._status = "stopped"
+                continue
 
             if not self._sequence_started and self._task.has_start_trigger:
                 image = capture_window(hwnd)

@@ -55,6 +55,7 @@
     "fatal_error": "致命错误: {error}",
     "press_enter_to_exit": "按 Enter 键退出...",
     "task.anti_afk": "防止游戏挂机检测",
+    "task.create_invite_only": "创建仅限邀请战局",
     "anti_afk_sent": "发送按键 {key_name}",
     "status_connected": "已连接",
     "status_not_running": "未运行",
