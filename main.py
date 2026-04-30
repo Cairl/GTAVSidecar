@@ -20,6 +20,15 @@ sys.dont_write_bytecode = True
 BASE_DIR = os.path.dirname(os.path.abspath(__file__))
 CONFIG_FILE = os.path.join(BASE_DIR, "config.json")
 _config_cache: dict = {"data": None, "mtime": 0.0}
+
+_TASK_ORDER = [
+    "create_invite_only",
+    "close_game_at_results",
+    "hack_solver_voltlab",
+    "hack_solver_ip_crack",
+    "anti_afk",
+    "bunker_fast_track_research",
+]
 GAME_PROCESS_NAME = "GTA5_Enhanced.exe"
 
 try:
@@ -842,7 +851,7 @@ class BaseTask:
 
     def execute_key_sequence(self, hwnd: int) -> None:
         display_name = translate(f"task.{self._task_name}")
-        _log_buffer.add(f"[{display_name}] {C_BLUE}聚焦窗口...{C_RESET}")
+        _log_buffer.add(f"[{display_name}] {C_YELLOW}开始创建战局...{C_RESET}")
         bring_to_foreground(hwnd)
         time.sleep(0.3)
         rect = _RECT()
@@ -855,11 +864,9 @@ class BaseTask:
             time.sleep(step["delay"] / 1000.0)
             repeat = step.get("repeat", 1)
             key = step["key"]
-            label = f"{key} x{repeat}" if repeat > 1 else key
-            _log_buffer.add(f"[{display_name}] {C_YELLOW}按 {label}{C_RESET}")
             for _ in range(repeat):
                 send_key(key)
-        _log_buffer.add(f"[{display_name}] {C_GREEN}已完成{C_RESET}")
+        _log_buffer.add(f"[{display_name}] {C_GREEN}战局创建完成{C_RESET}")
 
 
 _STEAM_LANG_MAP = {
@@ -1035,7 +1042,12 @@ def _build_default_config() -> dict:
     if not os.path.isdir(tasks_dir):
         return config
 
-    for name in sorted(os.listdir(tasks_dir)):
+    all_names = set(os.listdir(tasks_dir))
+    ordered_names = [n for n in _TASK_ORDER if n in all_names]
+    for extra in sorted(all_names - set(_TASK_ORDER)):
+        ordered_names.append(extra)
+
+    for name in ordered_names:
         task_path = os.path.join(tasks_dir, name, "task.py")
         if not os.path.isfile(task_path):
             continue
@@ -1546,7 +1558,7 @@ def _build_task_panel(task_keys: list[str], runners: dict[str, TaskRunner], anti
             seen_groups.add(group)
             group_name = translate(f"group.{group}")
             group_prefix = f"{' ' * PAD}   "
-            rows.append((f"{group_prefix}{group_name}", False, False))
+            rows.append((f"{group_prefix}{C_GRAY}{group_name}{C_RESET}", False, False))
 
         if group:
             checkbox = "🗹" if is_running else "☐"
@@ -1583,8 +1595,6 @@ def _build_task_panel(task_keys: list[str], runners: dict[str, TaskRunner], anti
     right_dashes = title_pad - left_dashes
     lines.append(f"{border_color}{BORDER_TL}{BORDER_H * left_dashes} {sc}{title}{C_RESET}{border_color} {BORDER_H * right_dashes}{BORDER_TR}{reset_color}")
 
-    lines.append(f"{border_color}{BORDER_V}{reset_color}{' ' * inner_w}{border_color}{BORDER_V}{reset_color}")
-
     for content, is_selected, is_running in rows:
         padded = _pad_to_width(content, inner_w)
         if is_selected:
@@ -1592,8 +1602,6 @@ def _build_task_panel(task_keys: list[str], runners: dict[str, TaskRunner], anti
             lines.append(f"{border_color}{BORDER_V}{reset_color}{C_HIGHLIGHT}{highlighted}{reset_color}{border_color}{BORDER_V}{reset_color}")
         else:
             lines.append(f"{border_color}{BORDER_V}{reset_color}{padded}{border_color}{BORDER_V}{reset_color}")
-
-    lines.append(f"{border_color}{BORDER_V}{reset_color}{' ' * inner_w}{border_color}{BORDER_V}{reset_color}")
 
     lines.append(f"{border_color}{BORDER_V}{BORDER_H * inner_w}{BORDER_V}{reset_color}")
 
@@ -1712,6 +1720,7 @@ def main() -> None:
                         runner._task_cfg = task_cfg
 
             task_keys = list(task_cfgs.keys()) + ["anti_afk"]
+            task_keys = [k for k in _TASK_ORDER if k in task_keys]
 
             now = time.time()
             _sample_process_resources()
@@ -1753,9 +1762,15 @@ def main() -> None:
                 if key == "\x00" or key == "\xe0":
                     arrow = msvcrt.getwch()
                     if arrow == "H":
-                        _selected_task_index = max(0, _selected_task_index - 1)
+                        if _selected_task_index == 0:
+                            _selected_task_index = len(task_keys) - 1
+                        else:
+                            _selected_task_index -= 1
                     elif arrow == "P":
-                        _selected_task_index = max(0, min(len(task_keys) - 1, _selected_task_index + 1))
+                        if _selected_task_index >= len(task_keys) - 1:
+                            _selected_task_index = 0
+                        else:
+                            _selected_task_index += 1
                 elif key == "\r":
                     if task_keys and 0 <= _selected_task_index < len(task_keys):
                         task_key = task_keys[_selected_task_index]
