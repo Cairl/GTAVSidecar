@@ -48,8 +48,7 @@ class Task(BaseTask):
                     if self._bg_start is None:
                         self._bg_start = time.time()
                     elif time.time() - self._bg_start >= interval:
-                        bring_to_foreground(hwnd)
-                        time.sleep(0.05)
+                        focus_game_window(hwnd)
                         send_key(key)
                         display_name = translate(f"task.{self._task_name}")
                         colored_key = f"{C_YELLOW}[{key.upper()}]{C_RESET}"

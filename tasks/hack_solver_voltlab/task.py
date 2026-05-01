@@ -365,8 +365,7 @@ class BreachSolver:
     def run(self, hwnd):
         display_name = translate("task." + self._task_name)
 
-        bring_to_foreground(hwnd)
-        time.sleep(0.5)
+        focus_game_window(hwnd)
         clip_cursor_to_window(hwnd)
 
         try:

@@ -6,7 +6,10 @@
     "detected": "{name}",
     "process_killed": "已成功退出游戏",
     "process_kill_failed": "退出游戏失败",
+    "sequence_starting": "开始执行序列...",
+    "sequence_starting.create_invite_only": "开始创建",
     "sequence_done": "序列完成",
+    "sequence_done.create_invite_only": "创建完成",
     "step_timeout": "监控超时，重新监控",
     "config_reloaded": "配置已热更新",
     "overlay_load_failed": "{overlay}: {error}",
@@ -56,10 +59,12 @@
     "press_enter_to_exit": "按 Enter 键退出...",
     "task.anti_afk": "防止游戏挂机检测",
     "task.create_invite_only": "创建仅限邀请战局",
+    "task.show_performance": "显示当前占用性能",
     "anti_afk_sent": "发送按键 {key_name}",
     "status_connected": "已连接",
     "status_not_running": "未运行",
     "status_no_window": "无窗口",
     "status_cpu": "CPU",
-    "status_memory": "内存"
+    "status_memory": "内存",
+    "game_window_not_found": "游戏窗口未找到，无法执行"
 }

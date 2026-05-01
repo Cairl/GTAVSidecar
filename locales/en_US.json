@@ -6,7 +6,10 @@
     "detected": "{name}",
     "process_killed": "Game closed successfully",
     "process_kill_failed": "Failed to close game",
+    "sequence_starting": "Starting sequence...",
+    "sequence_starting.create_invite_only": "Creating session",
     "sequence_done": "Done",
+    "sequence_done.create_invite_only": "Session created",
     "step_timeout": "Monitor timeout, restarting",
     "step_timeout_reset": "Monitor timeout, ending monitor",
     "config_reloaded": "Config reloaded",
@@ -56,10 +59,12 @@
     "press_enter_to_exit": "Press Enter to exit...",
     "task.anti_afk": "Anti-AFK Detection",
     "task.create_invite_only": "Create Invite-Only Session",
+    "task.show_performance": "Show Performance Usage",
     "anti_afk_sent": "Sent key {key_name}",
     "status_connected": "Connected",
     "status_not_running": "Not Running",
     "status_no_window": "No Window",
     "status_cpu": "CPU",
-    "status_memory": "Memory"
+    "status_memory": "Memory",
+    "game_window_not_found": "Game window not found, cannot execute"
 }

@@ -7,6 +7,9 @@
     "process_killed": "已成功退出遊戲",
     "process_kill_failed": "退出遊戲失敗",
     "sequence_done": "序列完成",
+    "sequence_done.create_invite_only": "創建完成",
+    "sequence_starting": "開始執行序列...",
+    "sequence_starting.create_invite_only": "開始創建",
     "step_timeout": "監控超時，重新監控",
     "config_reloaded": "配置已熱更新",
     "overlay_load_failed": "{overlay}: {error}",
@@ -55,10 +58,13 @@
     "fatal_error": "致命錯誤: {error}",
     "press_enter_to_exit": "按 Enter 鍵退出...",
     "task.anti_afk": "防止遊戲掛機檢測",
+    "task.create_invite_only": "創建僅限邀請戰局",
+    "task.show_performance": "顯示當前佔用效能",
     "anti_afk_sent": "發送按鍵 {key_name}",
     "status_connected": "已連接",
     "status_not_running": "未運行",
     "status_no_window": "無視窗",
     "status_cpu": "CPU",
-    "status_memory": "記憶體"
+    "status_memory": "記憶體",
+    "game_window_not_found": "遊戲視窗未找到，無法執行"
 }
