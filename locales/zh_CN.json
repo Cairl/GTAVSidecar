@@ -27,7 +27,7 @@
     "task.show_performance": "显示当前占用性能",
 
     "task.hack_solver_voltlab": "电压连线",
-    "task.hack_solver_ip_crack": "网络地址",
+    "task.hack_solver_connect_host": "连接主机",
 
     "group.hack_solver": "黑客游戏自动破译",
 
@@ -41,8 +41,8 @@
     "step.trigger.hack_solver_voltlab": "游戏开始",
     "step.hack.hack_solver_voltlab": "正在破解",
 
-    "step.trigger.hack_solver_ip_crack": "网络地址",
-    "step.hack.hack_solver_ip_crack": "正在破解",
+    "step.trigger.hack_solver_connect_host": "连接主机",
+    "step.hack.hack_solver_connect_host": "正在破解",
 
     "hack.hack_solver_voltlab.capture_failed": "截屏失败",
     "hack.hack_solver_voltlab.target_read_failed": "目标数字读取失败",
@@ -51,14 +51,14 @@
     "hack.hack_solver_voltlab.no_solution": "未找到有效配对方案",
     "hack.hack_solver_voltlab.game_over": "游戏结束",
 
-    "hack.hack_solver_ip_crack.capture_failed": "截屏失败",
-    "hack.hack_solver_ip_crack.target_read_failed": "目标识别失败",
-    "hack.hack_solver_ip_crack.target_detected": "目标 Host: {target}",
-    "hack.hack_solver_ip_crack.planning_path": "准备寻路...",
-    "hack.hack_solver_ip_crack.target_aligned": "已对位目标 (第{count}次)，等待重读...",
-    "hack.hack_solver_ip_crack.reread_status": "重读: 光标R{cr}C{cc} 目标R{tr}C{tc}",
-    "hack.hack_solver_ip_crack.resetting": "重置游戏",
-    "hack.hack_solver_ip_crack.completed": "破解完成",
+    "hack.hack_solver_connect_host.capture_failed": "截屏失败",
+    "hack.hack_solver_connect_host.target_read_failed": "目标识别失败",
+    "hack.hack_solver_connect_host.target_detected": "目标 Host: {target}",
+    "hack.hack_solver_connect_host.planning_path": "准备寻路...",
+    "hack.hack_solver_connect_host.target_aligned": "已对位目标 (第{count}次)，等待重读...",
+    "hack.hack_solver_connect_host.reread_status": "重读: 光标R{cr}C{cc} 目标R{tr}C{tc}",
+    "hack.hack_solver_connect_host.resetting": "重置游戏",
+    "hack.hack_solver_connect_host.completed": "破解完成",
 
     "anti_afk_sent": "发送按键 {key_name}",
     "status_connected": "已连接",

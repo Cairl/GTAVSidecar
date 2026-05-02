@@ -22,7 +22,7 @@ GTAVSidecar/
 └── tasks/               # 任务目录，每个自包含
     ├── bunker_fast_track_research/     # 覆盖图匹配 + 点击
     ├── close_game_at_results/          # 覆盖图匹配 + 进程终止
-    ├── hack_solver_ip_crack/           # OCR + BFS寻路（网络地址）
+    ├── hack_solver_connect_host/        # OCR + BFS寻路（连接主机）
     ├── hack_solver_voltlab/            # OCR + 排列求解（电压连线）
     ├── create_invite_only/             # 纯按键序列
     ├── anti_afk/                       # 防挂机定时按键
@@ -78,7 +78,7 @@ class Task(BaseTask):
     "create_invite_only": {"enabled": false, "scan_ms": 500},
     "hack_solver": {
         "voltlab": {"enabled": false, "scan_ms": 500},
-        "ip_crack": {"enabled": false, "scan_ms": 500}
+        "connect_host": {"enabled": false, "scan_ms": 500}
     }
 }
 ```
@@ -88,7 +88,7 @@ class Task(BaseTask):
 
 ## 黑客求解器
 
-### 网络地址 (ip_crack)
+### 连接主机 (connect_host)
 
 8×10 网格，在网格中找 4 位目标序列，BFS 最短路径导航。逐步执行 + 周期性重读屏幕追踪网格滚动。自动检测失败界面并重置。
 
@@ -136,7 +136,7 @@ class Task(BaseTask):
 - `tasks/hack_solver_voltlab/global/grid.json` — animation_delay_ms 2000→3000
 - `core/task_base.py` — BaseTask 新增 `run_once` 类属性
 - `core/task_runner.py` — TaskRunner 新增 `_disable_and_stop_in_config()`、run_once 执行后自动禁用、首次扫描无 trigger 时快速失败
-- `tasks/hack_solver_ip_crack/task.py` — 设置 `run_once = True`
+- `tasks/hack_solver_connect_host/task.py` — 设置 `run_once = True`
 - `core/renderer.py` — 复选框符号 ☑→🗹
 - `locales/*.json` — 新增 `trigger_not_found` 翻译键
 - `config.json` — hack_solver 子任务默认 enabled: false
@@ -174,12 +174,12 @@ class Task(BaseTask):
 - `locales/*.json` — 重构 hack 翻译键体系，删除 17 个旧通用键，新增 14 个按任务独立注册的新键
 - `locales/en_US.json` — "Create Invite-Only Session" 去连字符、"Voltlab"→"VOLTlab"、"Memory"→"Mem"、step 文本去 `|` 分隔符
 - `tasks/hack_solver_voltlab/task.py` — 6 处翻译键引用更新为 `hack.<task_name>.<status>` 格式
-- `tasks/hack_solver_ip_crack/task.py` — 10 处翻译键引用更新
+- `tasks/hack_solver_connect_host/task.py` — 10 处翻译键引用更新
 - `core/renderer.py` — 内存显示自动缩放单位（<1024 MB 显示 MB，≥1024 MB 显示 GB）
 - `core/resource_monitor.py` — 采样间隔 2.0s→1.0s
 
 ### 原因与背景
-1. hack 相关翻译键（`hack_target_read_failed`、`hack_capture_failed` 等）被 voltlab 和 IP crack 共用，但语义不同：voltlab 表示目标数字 OCR 失败，IP crack 表示目标格识别失败。混用导致回显不准确、排查困难
+1. hack 相关翻译键（`hack_target_read_failed`、`hack_capture_failed` 等）被 voltlab 和 connect_host 共用，但语义不同：voltlab 表示目标数字 OCR 失败，connect_host 表示目标格识别失败。混用导致回显不准确、排查困难
 2. 性能面板内存刷新 2 秒过慢，且超出 1024 MB 时仍显示小数不便阅读
 3. "Memory" 标签长度与 "CPU" 不一致，排版不紧凑
 4. step 文本中的 `|` 分隔符原用于两色渲染（action 白色 + detail 黄色），去掉后整段显示黄色，视觉更统一
@@ -190,7 +190,7 @@ class Task(BaseTask):
 |------|--------|--------|
 | 翻译键注册 | 通用 `hack_*`/`breach_*` 跨任务共用 | `hack.<task_name>.<status>` 按任务独立注册 |
 | 电压连线读取失败回显 | "Failed to read target Host" | "Failed to read target number" |
-| IP crack 读取失败回显 | "Failed to read target Host" | "Failed to detect target" |
+| connect_host 读取失败回显 | "Failed to read target Host" | "Failed to detect target" |
 | step 文本渲染 | `\|` 分割两色 | 整段黄色 |
 | 内存显示 | 始终 `X.X MB` | <1024: `X.X MB` / ≥1024: `X.XX GB` |
 | "Memory" 标签 | Memory | Mem |
@@ -204,3 +204,35 @@ class Task(BaseTask):
 ### 关键问题
 - 重构涉及三个语言文件同步修改（17 旧键删除 + 14 新键添加 + 6 处文本调整），逐个对齐避免遗漏
 - 翻译键命名与已有 `step.<阶段>.<task_name>` 模式对齐为 `hack.<task_name>.<status>`，保持一致性
+
+---
+
+## 26w18h
+
+### 修改范围
+- `tasks/hack_solver_ip_crack/` → `tasks/hack_solver_connect_host/` — 目录重命名
+- `core/config.py` — `_TASK_ORDER` 更新为新键名，新增 `_migrate_config()` 自动迁移旧配置
+- `locales/en_US.json` — 10 个翻译键 `hack_solver_ip_crack` → `hack_solver_connect_host`，显示名 "IP Crack" → "CONNECTING TO THE HOST"
+- `locales/zh_CN.json` — 10 个翻译键同步重命名，显示名 "网络地址" → "连接主机"
+- `locales/zh_TW.json` — 10 个翻译键同步重命名，显示名 "網路地址" → "連接主機"
+- `config.json` — 用户配置键 `ip_crack` → `connect_host`
+
+### 原因与背景
+任务显示名从 "IP Crack"（网络地址/網路地址）统一改为 "CONNECTING TO THE HOST"（连接主机/連接主機），涵盖目录名、内部键名、翻译键和配置文件键的全量重命名。
+
+### 行为差异
+
+| 场景 | 修改前 | 修改后 |
+|------|--------|--------|
+| 英文任务名 | IP Crack | CONNECTING TO THE HOST |
+| 简体中文任务名 | 网络地址 | 连接主机 |
+| 繁体中文任务名 | 網路地址 | 連接主機 |
+| 配置键名 | `hack_solver.ip_crack` | `hack_solver.connect_host` |
+
+### 系统影响
+- `load_config()` 内置 `_migrate_config()` 自动将旧 `ip_crack` 配置迁移为 `connect_host`，旧用户升级无感
+- 翻译键 `hack.hack_solver_ip_crack.*` → `hack.hack_solver_connect_host.*`，task.py 内通过 `self._task_name` 动态拼接无需改动
+
+### 关键问题
+- 目录重命名使用 `git mv` 保留版本历史
+- 翻译键在所有三种语言文件中严格对齐，避免键名不同步导致回退到键名原文

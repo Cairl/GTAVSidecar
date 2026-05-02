@@ -25,7 +25,7 @@ _TASK_ORDER = [
     "create_invite_only",
     "close_game_at_results",
     "hack_solver_voltlab",
-    "hack_solver_ip_crack",
+    "hack_solver_connect_host",
     "show_performance",
     "anti_afk",
     "bunker_fast_track_research",
@@ -108,6 +108,14 @@ def _load_task_module(task_name: str):
     return mod
 
 
+def _migrate_config(config: dict) -> dict:
+    if "hack_solver" in config and isinstance(config["hack_solver"], dict):
+        hs = config["hack_solver"]
+        if "ip_crack" in hs:
+            hs["connect_host"] = hs.pop("ip_crack")
+    return config
+
+
 def load_config() -> dict:
     try:
         if not os.path.exists(CONFIG_FILE):
@@ -117,7 +125,7 @@ def load_config() -> dict:
         mtime = os.path.getmtime(CONFIG_FILE)
         if mtime > _config_cache["mtime"]:
             with open(CONFIG_FILE, "r", encoding="utf-8") as f:
-                _config_cache["data"] = json.load(f)
+                _config_cache["data"] = _migrate_config(json.load(f))
             _config_cache["mtime"] = mtime
     except Exception:
         pass

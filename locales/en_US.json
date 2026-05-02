@@ -27,7 +27,7 @@
     "task.show_performance": "Show Performance Usage",
 
     "task.hack_solver_voltlab": "VOLTlab",
-    "task.hack_solver_ip_crack": "IP Crack",
+    "task.hack_solver_connect_host": "CONNECTING TO THE HOST",
 
     "group.hack_solver": "Hack Solver",
 
@@ -41,8 +41,8 @@
     "step.trigger.hack_solver_voltlab": "Game Start",
     "step.hack.hack_solver_voltlab": "Solving puzzle",
 
-    "step.trigger.hack_solver_ip_crack": "IP Crack",
-    "step.hack.hack_solver_ip_crack": "Solving puzzle",
+    "step.trigger.hack_solver_connect_host": "CONNECTING TO THE HOST",
+    "step.hack.hack_solver_connect_host": "Solving puzzle",
 
     "hack.hack_solver_voltlab.capture_failed": "Capture failed",
     "hack.hack_solver_voltlab.target_read_failed": "Failed to read target number",
@@ -51,14 +51,14 @@
     "hack.hack_solver_voltlab.no_solution": "No valid assignment found",
     "hack.hack_solver_voltlab.game_over": "Game over",
 
-    "hack.hack_solver_ip_crack.capture_failed": "Capture failed",
-    "hack.hack_solver_ip_crack.target_read_failed": "Failed to detect target",
-    "hack.hack_solver_ip_crack.target_detected": "Target Host: {target}",
-    "hack.hack_solver_ip_crack.planning_path": "Planning path...",
-    "hack.hack_solver_ip_crack.target_aligned": "Target aligned ({count}), waiting for re-read...",
-    "hack.hack_solver_ip_crack.reread_status": "Re-read: Cursor R{cr}C{cc} Target R{tr}C{tc}",
-    "hack.hack_solver_ip_crack.resetting": "Resetting game",
-    "hack.hack_solver_ip_crack.completed": "Hack complete",
+    "hack.hack_solver_connect_host.capture_failed": "Capture failed",
+    "hack.hack_solver_connect_host.target_read_failed": "Failed to detect target",
+    "hack.hack_solver_connect_host.target_detected": "Target Host: {target}",
+    "hack.hack_solver_connect_host.planning_path": "Planning path...",
+    "hack.hack_solver_connect_host.target_aligned": "Target aligned ({count}), waiting for re-read...",
+    "hack.hack_solver_connect_host.reread_status": "Re-read: Cursor R{cr}C{cc} Target R{tr}C{tc}",
+    "hack.hack_solver_connect_host.resetting": "Resetting game",
+    "hack.hack_solver_connect_host.completed": "Hack complete",
 
     "anti_afk_sent": "Sent key {key_name}",
     "status_connected": "Connected",
