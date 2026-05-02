@@ -1,4 +1,5 @@
 import unicodedata
+from functools import lru_cache
 
 from . import resource_monitor as _res
 from . import i18n as _i18n
@@ -30,6 +31,7 @@ def set_selected_index(idx: int) -> None:
     _selected_task_index = idx
 
 
+@lru_cache(maxsize=512)
 def _visible_len(s: str) -> int:
     result = 0
     in_escape = False

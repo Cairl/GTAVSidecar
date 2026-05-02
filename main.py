@@ -127,8 +127,9 @@ def main() -> None:
                 game_status = resource_monitor.get_game_status()
                 game_status_check_time = now
 
-            term_h = shutil.get_terminal_size().lines
-            term_w = shutil.get_terminal_size().columns
+            term_size = shutil.get_terminal_size()
+            term_h = term_size.lines
+            term_w = term_size.columns
 
             task_lines = renderer.build_task_panel(
                 task_keys, runners, afk_running, show_perf_running, game_status
@@ -148,15 +149,18 @@ def main() -> None:
                 lines.append(renderer._truncate_visible(entry, term_w))
             lines.extend(grid_lines)
 
+            out_buf: list[str] = []
             for i, line in enumerate(lines[:term_h]):
                 if i < len(last_render_lines) and last_render_lines[i] == line:
                     continue
-                sys.stdout.write(f"\033[{i + 1};1H\033[2K{line}")
+                out_buf.append(f"\033[{i + 1};1H\033[2K{line}")
 
             for i in range(len(lines), len(last_render_lines)):
                 if i < term_h:
-                    sys.stdout.write(f"\033[{i + 1};1H\033[2K")
+                    out_buf.append(f"\033[{i + 1};1H\033[2K")
 
+            if out_buf:
+                sys.stdout.write("".join(out_buf))
             sys.stdout.flush()
             last_render_lines = lines[:]
 
@@ -196,7 +200,7 @@ def main() -> None:
                                 config._set_task_enabled(cfg, task_key, runner.is_running)
                                 config.save_config(cfg)
 
-            time.sleep(0.15)
+            time.sleep(0.02)
 
     finally:
         _stop_anti_afk()
