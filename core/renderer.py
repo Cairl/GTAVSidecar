@@ -131,12 +131,12 @@ def build_task_panel(task_keys: list[str], runners: dict,
         if group and group not in seen_groups:
             seen_groups.add(group)
             group_name = _i18n.translate(f"group.{group}")
-            group_prefix = f"{' ' * PAD}   "
-            rows.append((f"{group_prefix}{C_GRAY}{group_name}{C_RESET}", False, False))
+            group_prefix = f"{' ' * PAD}☒  "
+            rows.append((f"{group_prefix}{group_name}", False, False))
 
         if group:
             checkbox = "\U0001F5F9" if is_running else "\u2610"
-            child_prefix = f"{' ' * PAD}    {checkbox}  "
+            child_prefix = f"{' ' * PAD}  {checkbox}  "
             rows.append((f"{child_prefix}{display_name}", is_selected, is_running))
         else:
             checkbox = "\U0001F5F9" if is_running else "\u2610"
