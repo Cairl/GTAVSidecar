@@ -372,21 +372,21 @@ class BreachSolver:
         try:
             image = capture_window(hwnd)
             if image is None:
-                _log_buffer.add(f"[{display_name}] {C_RED}{translate('hack_capture_failed')}{C_RESET}")
+                _log_buffer.add(f"[{display_name}] {C_RED}{translate('hack.' + self._task_name + '.capture_failed')}{C_RESET}")
                 return False
 
             offset = get_client_offset(hwnd)
 
             target = self._read_target(image, offset)
             if target <= 0:
-                _log_buffer.add(f"[{display_name}] {C_RED}{translate('hack_target_read_failed')}{C_RESET}")
+                _log_buffer.add(f"[{display_name}] {C_RED}{translate('hack.' + self._task_name + '.target_read_failed')}{C_RESET}")
                 return False
 
             numbers = []
             for i, num_cfg in enumerate(self._grid_cfg["numbers"]):
                 val = self._read_number_at(image, num_cfg, offset)
                 if val < 0:
-                    _log_buffer.add(f"[{display_name}] {C_RED}{translate('breach_number_read_failed', index=i+1)}{C_RESET}")
+                    _log_buffer.add(f"[{display_name}] {C_RED}{translate('hack.' + self._task_name + '.number_read_failed', index=i+1)}{C_RESET}")
                     return False
                 numbers.append(val)
 
@@ -394,13 +394,13 @@ class BreachSolver:
             for i, sym_cfg in enumerate(self._grid_cfg["symbols"]):
                 sym = self._read_symbol_at(image, sym_cfg, offset)
                 if sym is None:
-                    _log_buffer.add(f"[{display_name}] {C_RED}{translate('breach_symbol_read_failed', index=i+1)}{C_RESET}")
+                    _log_buffer.add(f"[{display_name}] {C_RED}{translate('hack.' + self._task_name + '.symbol_read_failed', index=i+1)}{C_RESET}")
                     return False
                 multipliers.append(sym)
 
             assignment = self._solve_assignment(target, numbers, multipliers)
             if assignment is None:
-                _log_buffer.add(f"[{display_name}] {C_RED}{translate('breach_no_solution')}{C_RESET}")
+                _log_buffer.add(f"[{display_name}] {C_RED}{translate('hack.' + self._task_name + '.no_solution')}{C_RESET}")
                 return False
 
             mult_values = {"x1": 1, "x2": 2, "x10": 10}
@@ -556,7 +556,7 @@ class BreachSolver:
                 else:
                     current_sum = expected_sum
 
-            _log_buffer.add(f"[{display_name}] {gn}{translate('hack_game_over')}{rs}")
+            _log_buffer.add(f"[{display_name}] {gn}{translate('hack.' + self._task_name + '.game_over')}{rs}")
 
             if _anim_thread is not None:
                 _anim_thread.join()

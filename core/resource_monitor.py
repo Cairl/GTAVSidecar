@@ -55,7 +55,7 @@ _process_cpu_state: dict = {
 def sample_process_resources() -> None:
     now = time.time()
     state = _process_cpu_state
-    if now - state["last_sample_time"] < 2.0:
+    if now - state["last_sample_time"] < 1.0:
         return
     state["last_sample_time"] = now
 

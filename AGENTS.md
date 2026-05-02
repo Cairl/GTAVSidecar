@@ -165,3 +165,42 @@ class Task(BaseTask):
 - 电压连线不稳定根因是代码对游戏光标落点规则的假设错误，而非 OCR 识别问题
 - 动画延迟过短（2000ms）导致 Enter 在动画期间被吞掉，后续导航键在错误状态下执行，产生"平行连"结果
 - `C_RED` 常量通过 `_INJECT_SYMBOLS` 仅对 task.py 模块注入，`task_runner.py` 使用会 NameError，改用原始 ANSI 转义码
+
+---
+
+## 26w18g
+
+### 修改范围
+- `locales/*.json` — 重构 hack 翻译键体系，删除 17 个旧通用键，新增 14 个按任务独立注册的新键
+- `locales/en_US.json` — "Create Invite-Only Session" 去连字符、"Voltlab"→"VOLTlab"、"Memory"→"Mem"、step 文本去 `|` 分隔符
+- `tasks/hack_solver_voltlab/task.py` — 6 处翻译键引用更新为 `hack.<task_name>.<status>` 格式
+- `tasks/hack_solver_ip_crack/task.py` — 10 处翻译键引用更新
+- `core/renderer.py` — 内存显示自动缩放单位（<1024 MB 显示 MB，≥1024 MB 显示 GB）
+- `core/resource_monitor.py` — 采样间隔 2.0s→1.0s
+
+### 原因与背景
+1. hack 相关翻译键（`hack_target_read_failed`、`hack_capture_failed` 等）被 voltlab 和 IP crack 共用，但语义不同：voltlab 表示目标数字 OCR 失败，IP crack 表示目标格识别失败。混用导致回显不准确、排查困难
+2. 性能面板内存刷新 2 秒过慢，且超出 1024 MB 时仍显示小数不便阅读
+3. "Memory" 标签长度与 "CPU" 不一致，排版不紧凑
+4. step 文本中的 `|` 分隔符原用于两色渲染（action 白色 + detail 黄色），去掉后整段显示黄色，视觉更统一
+
+### 行为差异
+
+| 场景 | 修改前 | 修改后 |
+|------|--------|--------|
+| 翻译键注册 | 通用 `hack_*`/`breach_*` 跨任务共用 | `hack.<task_name>.<status>` 按任务独立注册 |
+| 电压连线读取失败回显 | "Failed to read target Host" | "Failed to read target number" |
+| IP crack 读取失败回显 | "Failed to read target Host" | "Failed to detect target" |
+| step 文本渲染 | `\|` 分割两色 | 整段黄色 |
+| 内存显示 | 始终 `X.X MB` | <1024: `X.X MB` / ≥1024: `X.XX GB` |
+| "Memory" 标签 | Memory | Mem |
+| 性能刷新间隔 | 2.0s | 1.0s |
+
+### 系统影响
+- 新增任务按 `hack.<task_name>.<status>` 命名独立注册翻译键，不再复用通用键
+- 闲置键（`breach_target_detected` 等 9 个）已从三个 locale 文件清除
+- `_color_step()` 中的 `|` 分割逻辑保留但不再被触发，向后兼容无影响
+
+### 关键问题
+- 重构涉及三个语言文件同步修改（17 旧键删除 + 14 新键添加 + 6 处文本调整），逐个对齐避免遗漏
+- 翻译键命名与已有 `step.<阶段>.<task_name>` 模式对齐为 `hack.<task_name>.<status>`，保持一致性

@@ -504,7 +504,7 @@ class HackingSolver:
             if self._check_fail(hwnd, get_client_offset(hwnd)):
                 return "reset"
             _hack_display_clear()
-            _log_buffer.add(f"[{display_name}] {C_RED}{translate('hack_capture_failed')}{C_RESET}")
+            _log_buffer.add(f"[{display_name}] {C_RED}{translate('hack.' + self._task_name + '.capture_failed')}{C_RESET}")
             return None
 
         offset = get_client_offset(hwnd)
@@ -515,13 +515,13 @@ class HackingSolver:
                 return "reset"
             _hack_display_clear()
             _log_buffer.add(
-                f"[{display_name}] {C_RED}{translate('hack_target_read_failed')}{C_RESET}"
+                f"[{display_name}] {C_RED}{translate('hack.' + self._task_name + '.target_read_failed')}{C_RESET}"
             )
             return None
 
         target_str = ".".join(f"{v:02d}" for v in target[:self.CURSOR_LEN])
         _log_buffer.add(
-            f"[{display_name}] {translate('hack_target_detected', target=f'{C_RED}{target_str}{C_RESET}')}"
+            f"[{display_name}] {translate('hack.' + self._task_name + '.target_detected', target=f'{C_RED}{target_str}{C_RESET}')}"
         )
 
         grid, cursor_pos, low_conf = self._read_grid(image, offset)
@@ -532,7 +532,7 @@ class HackingSolver:
 
         self._update_display(
             grid, cursor_pos, target_pos, target[:self.CURSOR_LEN],
-            [], 0, f"{C_GRAY}{translate('hack_planning_path')}{C_RESET}"
+            [], 0, f"{C_GRAY}{translate('hack.' + self._task_name + '.planning_path')}{C_RESET}"
         )
 
         current_pos = cursor_pos
@@ -548,7 +548,7 @@ class HackingSolver:
                 self._update_display(
                     grid, current_pos, current_target_pos, target[:self.CURSOR_LEN],
                     [], 0,
-                    f"{C_GREEN}{translate('hack_target_aligned', count=retrack_count)}{C_RESET}"
+                    f"{C_GREEN}{translate('hack.' + self._task_name + '.target_aligned', count=retrack_count)}{C_RESET}"
                 )
                 time.sleep(0.3)
 
@@ -557,7 +557,7 @@ class HackingSolver:
                     if self._check_fail(hwnd, offset):
                         return "reset"
                     _hack_display_clear()
-                    _log_buffer.add(f"[{display_name}] {C_RED}{translate('hack_capture_failed')}{C_RESET}")
+                    _log_buffer.add(f"[{display_name}] {C_RED}{translate('hack.' + self._task_name + '.capture_failed')}{C_RESET}")
                     return None
 
                 if self._trigger_matcher is not None:
@@ -599,7 +599,7 @@ class HackingSolver:
                 self._update_display(
                     grid, current_pos, current_target_pos, target[:self.CURSOR_LEN],
                     [], 0,
-                    f"{C_GRAY}{translate('hack_reread_status', cr=cr, cc=cc, tr=tr, tc=tc)}{C_RESET}"
+                    f"{C_GRAY}{translate('hack.' + self._task_name + '.reread_status', cr=cr, cc=cc, tr=tr, tc=tc)}{C_RESET}"
                 )
                 continue
 
@@ -631,7 +631,7 @@ class HackingSolver:
                     self._update_display(
                         grid, current_pos, current_target_pos, target[:self.CURSOR_LEN],
                         [], 0,
-                        f"{C_GRAY}{translate('hack_reread_status', cr=cr, cc=cc, tr=tr, tc=tc)}{C_RESET}"
+                        f"{C_GRAY}{translate('hack.' + self._task_name + '.reread_status', cr=cr, cc=cc, tr=tr, tc=tc)}{C_RESET}"
                     )
 
                 last_read_time = time.time()
@@ -666,7 +666,7 @@ class HackingSolver:
                 result = self._attempt_hack(hwnd, display_name)
                 if result == "reset":
                     _hack_display_clear()
-                    _log_buffer.add(f"[{display_name}] {C_YELLOW}{translate('hack_resetting')}{C_RESET}")
+                    _log_buffer.add(f"[{display_name}] {C_YELLOW}{translate('hack.' + self._task_name + '.resetting')}{C_RESET}")
                     send_key("enter")
                     time.sleep(1.0)
                     continue
@@ -674,7 +674,7 @@ class HackingSolver:
                     _hack_display_clear()
                 else:
                     _hack_display_update(game_over=True)
-                    _log_buffer.add(f"[{display_name}] {C_GREEN}{translate('hack_completed')}{C_RESET}")
+                    _log_buffer.add(f"[{display_name}] {C_GREEN}{translate('hack.' + self._task_name + '.completed')}{C_RESET}")
                 return result is True
         finally:
             unclip_cursor()

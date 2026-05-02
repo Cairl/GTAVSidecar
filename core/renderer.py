@@ -158,9 +158,13 @@ def build_task_panel(task_keys: list[str], runners: dict,
     if show_perf_running:
         cpu_pct = _res.get_cpu_percent()
         mem_mb = _res.get_mem_mb()
+        if mem_mb >= 1024:
+            mem_str = f"{mem_mb / 1024:.2f}GB"
+        else:
+            mem_str = f"{mem_mb:.1f}MB"
         status_text = (
             f"{_i18n.translate('status_cpu')} {cpu_pct:.1f}%"
-            f"  {_i18n.translate('status_memory')} {mem_mb:.1f}MB"
+            f"  {_i18n.translate('status_memory')} {mem_str}"
         )
 
     lines: list[str] = []
