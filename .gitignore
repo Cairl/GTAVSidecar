@@ -8,3 +8,5 @@ config.json
 docs
 
 AGENTS.py
+
+run_sync.bat
