@@ -22,6 +22,7 @@ class TaskRunner:
         self._sequence_started = False
         self._timeout_count = 0
         self._cycle_count = 0
+        self._run_once_checked = False
         self._load_task()
 
     def _load_task(self) -> bool:
@@ -76,6 +77,7 @@ class TaskRunner:
         if self._task is None:
             if not self._load_task():
                 return
+        self._run_once_checked = False
         self._running = True
         self._status = "running"
         self._thread = threading.Thread(target=self._run, daemon=True)
@@ -88,6 +90,15 @@ class TaskRunner:
             self._thread.join(timeout=3)
         self._thread = None
 
+    def _disable_and_stop_in_config(self):
+        cfg = _cfg.load_config()
+        task_cfg = _cfg._get_task_config(cfg, self._task_name)
+        if task_cfg:
+            task_cfg["enabled"] = False
+            _cfg.save_config(cfg)
+        self._running = False
+        self._status = "stopped"
+
     def reload(self, task_cfg: dict, global_cfg: dict) -> None:
         was_running = self._running
         self.stop()
@@ -97,6 +108,7 @@ class TaskRunner:
         self._current_step = 0
         self._sequence_started = False
         self._timeout_count = 0
+        self._run_once_checked = False
         if self._task:
             self._task.reload(task_cfg, global_cfg)
         if was_running:
@@ -191,10 +203,20 @@ class TaskRunner:
                             break
                         time.sleep(0.1)
                 else:
+                    if self._task.run_once and not self._run_once_checked:
+                        self._run_once_checked = True
+                        _log_mod._log_buffer.add(
+                            f"[{display_name}] \033[38;2;243;139;168m{_i18n.translate('trigger_not_found')}\033[0m"
+                        )
+                        self._disable_and_stop_in_config()
+                        continue
                     time.sleep(idle_interval)
                 continue
 
             if step_index >= self._task.step_count:
+                if self._task.run_once:
+                    self._disable_and_stop_in_config()
+                    continue
                 self._sequence_started = False
                 step_index = 0
                 self._cycle_count += 1
@@ -213,6 +235,9 @@ class TaskRunner:
 
             if found:
                 success = self._task.execute_step(step_index, hwnd, confidence, scan_center)
+                if self._task.run_once:
+                    self._disable_and_stop_in_config()
+                    continue
                 if success:
                     self._timeout_count = 0
                     step_index += 1

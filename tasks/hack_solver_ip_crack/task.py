@@ -12,6 +12,7 @@ class Task(BaseTask):
     start_trigger = {"overlay": "trigger", "lang": "global", "click": False}
     steps = [{"overlay": "hack", "lang": "auto", "action": "hack"}]
     step_timeout_ms = 60000
+    run_once = True
 
     def __init__(self, task_name, task_cfg, global_cfg):
         super().__init__(task_name, task_cfg, global_cfg)

@@ -108,7 +108,7 @@ def build_task_panel(task_keys: list[str], runners: dict,
             display_name = _i18n.translate(f"task.{key}")
             is_running = anti_afk_running
             is_selected = idx == _selected_task_index
-            checkbox = "\u2611" if is_running else "\u2610"
+            checkbox = "\U0001F5F9" if is_running else "\u2610"
             prefix = f"{' ' * PAD}{checkbox}  "
             rows.append((f"{prefix}{display_name}", is_selected, is_running))
             continue
@@ -117,7 +117,7 @@ def build_task_panel(task_keys: list[str], runners: dict,
             display_name = _i18n.translate(f"task.{key}")
             is_running = show_perf_running
             is_selected = idx == _selected_task_index
-            checkbox = "\u2611" if is_running else "\u2610"
+            checkbox = "\U0001F5F9" if is_running else "\u2610"
             prefix = f"{' ' * PAD}{checkbox}  "
             rows.append((f"{prefix}{display_name}", is_selected, is_running))
             continue
@@ -135,11 +135,11 @@ def build_task_panel(task_keys: list[str], runners: dict,
             rows.append((f"{group_prefix}{C_GRAY}{group_name}{C_RESET}", False, False))
 
         if group:
-            checkbox = "\u2611" if is_running else "\u2610"
+            checkbox = "\U0001F5F9" if is_running else "\u2610"
             child_prefix = f"{' ' * PAD}    {checkbox}  "
             rows.append((f"{child_prefix}{display_name}", is_selected, is_running))
         else:
-            checkbox = "\u2611" if is_running else "\u2610"
+            checkbox = "\U0001F5F9" if is_running else "\u2610"
             prefix = f"{' ' * PAD}{checkbox}  "
             rows.append((f"{prefix}{display_name}", is_selected, is_running))
 

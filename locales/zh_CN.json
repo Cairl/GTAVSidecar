@@ -66,5 +66,6 @@
     "status_no_window": "无窗口",
     "status_cpu": "CPU",
     "status_memory": "内存",
-    "game_window_not_found": "游戏窗口未找到，无法执行"
+    "game_window_not_found": "游戏窗口未找到，无法执行",
+    "trigger_not_found": "尚未发现游戏"
 }

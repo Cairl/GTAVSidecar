@@ -66,5 +66,6 @@
     "status_no_window": "無視窗",
     "status_cpu": "CPU",
     "status_memory": "記憶體",
-    "game_window_not_found": "遊戲視窗未找到，無法執行"
+    "game_window_not_found": "遊戲視窗未找到，無法執行",
+    "trigger_not_found": "尚未發現遊戲"
 }

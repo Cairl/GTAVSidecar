@@ -13,6 +13,7 @@ class Task(BaseTask):
     start_trigger = {"overlay": "trigger", "lang": "global", "click": False}
     steps = [{"overlay": "hack", "lang": "auto", "action": "hack"}]
     step_timeout_ms = 60000
+    run_once = True
 
     def __init__(self, task_name, task_cfg, global_cfg):
         super().__init__(task_name, task_cfg, global_cfg)
@@ -466,9 +467,13 @@ class BreachSolver:
                 send_key("enter")
                 time.sleep(0.5)
 
-                cursor_pos = i
-                while cursor_pos in selected_symbols:
-                    cursor_pos = (cursor_pos + 1) % self.NUM_COUNT
+                if i == 0:
+                    cursor_pos = 0
+                elif i == 1:
+                    priority = [1, 2, 0]
+                    cursor_pos = next(p for p in priority if p not in selected_symbols)
+                else:
+                    cursor_pos = next(p for p in range(self.NUM_COUNT) if p not in selected_symbols)
 
                 available = [idx for idx in range(self.NUM_COUNT) if idx not in selected_symbols]
 

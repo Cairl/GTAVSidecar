@@ -66,5 +66,6 @@
     "status_no_window": "No Window",
     "status_cpu": "CPU",
     "status_memory": "Memory",
-    "game_window_not_found": "Game window not found, cannot execute"
+    "game_window_not_found": "Game window not found, cannot execute",
+    "trigger_not_found": "Game trigger not found"
 }
