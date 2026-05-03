@@ -507,6 +507,14 @@ class HackingSolver:
         self._last_highlighted_rows = None
 
     def _clear_display(self):
+        for idx in self._grid_line_indices:
+            _log_buffer.replace_at(idx, "")
+        if self._status_line_idx is not None:
+            _log_buffer.replace_at(self._status_line_idx, "")
+        if self._game_start_line_idx is not None:
+            _log_buffer.replace_at(self._game_start_line_idx, "")
+        if self._target_host_line_idx is not None:
+            _log_buffer.replace_at(self._target_host_line_idx, "")
         self._grid_line_indices = []
         self._status_line_idx = None
         self._game_start_line_idx = None
