@@ -10,3 +10,5 @@ docs
 AGENTS.py
 
 run_sync.bat
+
+.worktrees/
