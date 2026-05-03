@@ -715,16 +715,22 @@ class HackingSolver:
         clip_cursor_to_window(hwnd)
 
         try:
+            attempts = 0
             while True:
                 result = self._attempt_hack(hwnd, display_name)
                 if result == "reset":
+                    attempts = 0
                     self._clear_display()
                     _log_buffer.add(f"[{display_name}] {C_YELLOW}{translate('hack.' + self._task_name + '.resetting')}{C_RESET}")
                     send_key("enter")
                     time.sleep(1.0 / self._speed_ratio)
                     continue
-                if result is not True:
+                if result is True:
+                    return True
+                attempts += 1
+                if attempts >= self.MAX_ATTEMPTS:
                     self._clear_display()
-                return result is True
+                    return False
+                time.sleep(0.3 / self._speed_ratio)
         finally:
             unclip_cursor()
