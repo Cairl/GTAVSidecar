@@ -488,6 +488,9 @@ class HackingSolver:
         self._game_start_line_idx = None
         self._target_pos = None
 
+    def _reset_solver_state(self):
+        self._clear_display()
+
     def _render_grid_row(self, row_idx, grid, cursor_pos, target_pos):
         cursor_cells = set()
         pos = cursor_pos
@@ -705,6 +708,8 @@ class HackingSolver:
 
     def run(self, hwnd):
         display_name = translate("task." + self._task_name)
+
+        self._reset_solver_state()
 
         focus_game_window(hwnd)
         clip_cursor_to_window(hwnd)
