@@ -598,9 +598,6 @@ class HackingSolver:
             return None
 
         target_str = ".".join(f"{v:02d}" for v in target[:self.CURSOR_LEN])
-        _log_buffer.add(
-            f"[{display_name}] {translate('hack.' + self._task_name + '.target_detected', target=f'{C_RED}{target_str}{C_RESET}')}"
-        )
 
         grid, cursor_pos, low_conf = self._read_grid(image, offset)
 
