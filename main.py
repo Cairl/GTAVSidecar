@@ -3,6 +3,7 @@ import os
 import time
 import shutil
 import msvcrt
+import signal
 
 sys.dont_write_bytecode = True
 
@@ -60,6 +61,8 @@ def main() -> None:
     game_lang = config.resolve_game_language(config_lang)
     i18n.i18n_init(game_lang, BASE_DIR)
     log_buffer._log_buffer.set_log_dir(os.path.join(BASE_DIR, "logs"))
+
+    signal.signal(signal.SIGINT, signal.SIG_IGN)
 
     if os.name == "nt":
         os.system("")
@@ -175,6 +178,8 @@ def main() -> None:
                             renderer.set_selected_index(0)
                         else:
                             renderer.set_selected_index(renderer.get_selected_index() + 1)
+                elif key == "\x1b":
+                    pass
                 elif key == "\r":
                     if task_keys and 0 <= renderer.get_selected_index() < len(task_keys):
                         task_key = task_keys[renderer.get_selected_index()]

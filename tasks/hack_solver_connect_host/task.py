@@ -45,8 +45,6 @@ class HackingSolver:
     MAX_STEPS = 25
     TOTAL_CELLS = GRID_ROWS * GRID_COLS
     MAX_ATTEMPTS = 5
-    CURSOR_BG = "\033[48;2;166;227;161m"
-    CURSOR_FG = "\033[30m"
 
     def __init__(self, task_name, global_cfg, auto_enter=True, scan_ms=500):
         self._task_name = task_name
@@ -60,7 +58,7 @@ class HackingSolver:
         self._fail_matcher = None
         self._grid_line_indices = []
         self._game_start_line_idx = None
-        self._target_pos = None
+        self._target_host_line_idx = None
         self._last_highlighted_rows = None
 
     def set_trigger_matcher(self, matcher):
@@ -472,10 +470,13 @@ class HackingSolver:
     def _set_display_status(self, display_name, grid, cursor_pos):
         self._render_grid_rows(display_name, grid, cursor_pos)
 
-    def _init_display(self, display_name):
+    def _init_display(self, display_name, target_str):
         self._clear_display()
         self._game_start_line_idx = _log_buffer.add(
             f"[{display_name}] {C_YELLOW}{translate('hack.' + self._task_name + '.game_start')}{C_RESET}"
+        )
+        self._target_host_line_idx = _log_buffer.add(
+            f"[{display_name}] {translate('hack.' + self._task_name + '.target_detected', target=f'{C_RED}{target_str}{C_RESET}')}"
         )
         self._grid_line_indices = []
         for _ in range(self.GRID_ROWS):
@@ -488,8 +489,11 @@ class HackingSolver:
             _log_buffer.replace_at(idx, "")
         if self._game_start_line_idx is not None:
             _log_buffer.replace_at(self._game_start_line_idx, "")
+        if self._target_host_line_idx is not None:
+            _log_buffer.replace_at(self._target_host_line_idx, "")
         self._grid_line_indices = []
         self._game_start_line_idx = None
+        self._target_host_line_idx = None
         self._last_highlighted_rows = None
 
     def _render_grid_row(self, row_idx, grid, cursor_pos):
@@ -499,61 +503,17 @@ class HackingSolver:
             cursor_cells.add(pos)
             pos = self._move(pos, "d")
 
-        target_cells = set()
-        if self._target_pos is not None:
-            pos = self._target_pos
-            for _ in range(self.CURSOR_LEN):
-                target_cells.add(pos)
-                pos = self._move(pos, "d")
-
         row_start = row_idx * self.GRID_COLS
-        elements = []
+        parts = []
         for col in range(self.GRID_COLS):
             cell_pos = row_start + col
             val = grid[cell_pos]
             cell_str = f"{val:02d}"
-            is_cursor = cell_pos in cursor_cells
-            is_target = cell_pos in target_cells
-
-            if is_cursor and is_target:
-                elements.append((f"{C_RED}{cell_str}{C_RESET}", True))
-            elif is_cursor:
-                elements.append((f"{self.CURSOR_FG}{cell_str}{C_RESET}", True))
-            elif is_target:
-                elements.append((f"{C_RED}{cell_str}{C_RESET}", False))
+            if cell_pos in cursor_cells:
+                parts.append(f"{C_HIGHLIGHT}{cell_str}{C_RESET}")
             else:
-                elements.append((cell_str, False))
-
-        result = ""
-        in_cursor = False
-        for i, (text, el_is_cursor) in enumerate(elements):
-            if i > 0:
-                prev_was_cursor = elements[i - 1][1]
-                space_cursor = prev_was_cursor and el_is_cursor
-                if in_cursor and not space_cursor:
-                    result += C_RESET
-                    in_cursor = False
-                    result += " "
-                elif space_cursor and not in_cursor:
-                    result += f"{self.CURSOR_BG} "
-                elif space_cursor:
-                    result += " "
-                else:
-                    result += " "
-
-            if el_is_cursor and not in_cursor:
-                result += self.CURSOR_BG
-                in_cursor = True
-            elif not el_is_cursor and in_cursor:
-                result += C_RESET
-                in_cursor = False
-
-            result += text
-
-        if in_cursor:
-            result += C_RESET
-
-        return result
+                parts.append(cell_str)
+        return " ".join(parts)
 
     def _render_grid_rows(self, display_name, grid, cursor_pos):
         new_highlighted = set()
@@ -624,9 +584,8 @@ class HackingSolver:
         grid, cursor_pos, low_conf = self._read_grid(image, offset)
 
         target_pos = self._find_target_in_grid(target[:self.CURSOR_LEN], grid)
-        self._target_pos = target_pos
         if target_pos is None:
-            self._init_display(display_name)
+            self._init_display(display_name, target_str)
             for r in range(self.GRID_ROWS):
                 row_vals = grid[r * self.GRID_COLS:(r + 1) * self.GRID_COLS]
                 row_str = " ".join(f"{v:02d}" for v in row_vals)
@@ -643,7 +602,7 @@ class HackingSolver:
                 )
             return "reset"
 
-        self._init_display(display_name)
+        self._init_display(display_name, target_str)
 
         self._set_display_status(display_name, grid, cursor_pos)
 
