@@ -56,7 +56,6 @@ class HackingSolver:
         self._host_cfg = {}
         self._trigger_matcher = None
         self._fail_matcher = None
-        self._status_line_idx = None
         self._grid_line_indices = []
         self._game_start_line_idx = None
         self._target_host_line_idx = None
@@ -468,28 +467,8 @@ class HackingSolver:
                 queue.append((next_pos, new_path))
         return []
 
-    def _set_display_status(self, display_name, cursor_pos, target_pos,
-                            grid, path, path_idx, status_text):
+    def _set_display_status(self, display_name, grid, cursor_pos):
         self._render_grid_rows(display_name, grid, cursor_pos)
-
-        cr = cursor_pos // self.GRID_COLS + 1
-        cc = cursor_pos % self.GRID_COLS + 1
-        tr = target_pos // self.GRID_COLS + 1
-        tc = target_pos % self.GRID_COLS + 1
-
-        if path and path_idx > 0:
-            key = path[path_idx - 1]
-            step = f"{key} → R{cr}C{cc} ({path_idx}/{len(path)})"
-            pos = f"{C_GRAY}[R{cr}C{cc} → R{tr}C{tc}] {step}{C_RESET}"
-        else:
-            pos = f"{C_GRAY}[R{cr}C{cc} → R{tr}C{tc}]{C_RESET}"
-
-        if status_text:
-            line = f"{status_text} {pos}"
-        else:
-            line = pos
-
-        _log_buffer.replace_at(self._status_line_idx, f"[{display_name}] {line}")
 
     def _init_display(self, display_name, target_str):
         self._clear_display()
@@ -503,20 +482,16 @@ class HackingSolver:
         for _ in range(self.GRID_ROWS):
             idx = _log_buffer.add(f"[{display_name}] ")
             self._grid_line_indices.append(idx)
-        self._status_line_idx = _log_buffer.add(f"[{display_name}] ")
         self._last_highlighted_rows = None
 
     def _clear_display(self):
         for idx in self._grid_line_indices:
             _log_buffer.replace_at(idx, "")
-        if self._status_line_idx is not None:
-            _log_buffer.replace_at(self._status_line_idx, "")
         if self._game_start_line_idx is not None:
             _log_buffer.replace_at(self._game_start_line_idx, "")
         if self._target_host_line_idx is not None:
             _log_buffer.replace_at(self._target_host_line_idx, "")
         self._grid_line_indices = []
-        self._status_line_idx = None
         self._game_start_line_idx = None
         self._target_host_line_idx = None
         self._last_highlighted_rows = None
@@ -618,8 +593,7 @@ class HackingSolver:
                     self._grid_line_indices[r],
                     f"[{display_name}] {C_GRAY}{row_str}{C_RESET}"
                 )
-            _log_buffer.replace_at(
-                self._status_line_idx,
+            _log_buffer.add(
                 f"[{display_name}] {C_RED}{translate('hack.' + self._task_name + '.target_not_found', target=target_str)}{C_RESET}"
             )
             if low_conf:
@@ -630,10 +604,7 @@ class HackingSolver:
 
         self._init_display(display_name, target_str)
 
-        self._set_display_status(
-            display_name, cursor_pos, target_pos,
-            grid, [], 0, translate('hack.' + self._task_name + '.planning_path')
-        )
+        self._set_display_status(display_name, grid, cursor_pos)
 
         current_pos = cursor_pos
         current_target_pos = target_pos
@@ -645,11 +616,7 @@ class HackingSolver:
         while True:
             if current_pos == current_target_pos:
                 retrack_count += 1
-                self._set_display_status(
-                    display_name, current_pos, current_target_pos,
-                    grid, [], 0,
-                    f"{C_GREEN}{translate('hack.' + self._task_name + '.target_aligned', count=retrack_count)}{C_RESET}"
-                )
+                self._set_display_status(display_name, grid, current_pos)
                 time.sleep(0.3)
 
                 re_image = capture_window(hwnd)
@@ -665,10 +632,7 @@ class HackingSolver:
                     if not found:
                         if self._check_fail(hwnd, offset):
                             return "reset"
-                        _log_buffer.replace_at(
-                            self._status_line_idx,
-                            f"[{display_name}] {C_GREEN}{translate('hack.' + self._task_name + '.game_over')}{C_RESET}"
-                        )
+                        _log_buffer.add(f"[{display_name}] {C_GREEN}{translate('hack.' + self._task_name + '.game_over')}{C_RESET}")
                         return True
 
                 grid, cursor_pos, _ = self._read_grid(re_image, offset)
@@ -690,25 +654,14 @@ class HackingSolver:
                             if not found:
                                 if self._check_fail(hwnd, offset):
                                     return "reset"
-                                _log_buffer.replace_at(
-                                    self._status_line_idx,
-                                    f"[{display_name}] {C_GREEN}{translate('hack.' + self._task_name + '.game_over')}{C_RESET}"
-                                )
+                                _log_buffer.add(f"[{display_name}] {C_GREEN}{translate('hack.' + self._task_name + '.game_over')}{C_RESET}")
                                 return True
 
                 path = []
                 path_idx = 0
                 last_read_time = time.time()
 
-                cr = current_pos // self.GRID_COLS + 1
-                cc = current_pos % self.GRID_COLS + 1
-                tr = current_target_pos // self.GRID_COLS + 1
-                tc = current_target_pos % self.GRID_COLS + 1
-                self._set_display_status(
-                    display_name, current_pos, current_target_pos,
-                    grid, [], 0,
-                    f"{C_GRAY}{translate('hack.' + self._task_name + '.reread_status', cr=cr, cc=cc, tr=tr, tc=tc)}{C_RESET}"
-                )
+                self._set_display_status(display_name, grid, current_pos)
                 continue
 
             if time.time() - last_read_time >= self._scan_interval:
@@ -719,10 +672,7 @@ class HackingSolver:
                         if not found:
                             if self._check_fail(hwnd, offset):
                                 return "reset"
-                            _log_buffer.replace_at(
-                                self._status_line_idx,
-                                f"[{display_name}] {C_GREEN}{translate('hack.' + self._task_name + '.game_over')}{C_RESET}"
-                            )
+                            _log_buffer.add(f"[{display_name}] {C_GREEN}{translate('hack.' + self._task_name + '.game_over')}{C_RESET}")
                             return True
 
                     grid, cursor_pos, _ = self._read_grid(re_image, offset)
@@ -736,15 +686,7 @@ class HackingSolver:
                     path = []
                     path_idx = 0
 
-                    cr = current_pos // self.GRID_COLS + 1
-                    cc = current_pos % self.GRID_COLS + 1
-                    tr = current_target_pos // self.GRID_COLS + 1
-                    tc = current_target_pos % self.GRID_COLS + 1
-                    self._set_display_status(
-                        display_name, current_pos, current_target_pos,
-                        grid, [], 0,
-                        f"{C_GRAY}{translate('hack.' + self._task_name + '.reread_status', cr=cr, cc=cc, tr=tr, tc=tc)}{C_RESET}"
-                    )
+                    self._set_display_status(display_name, grid, current_pos)
 
                 last_read_time = time.time()
 
@@ -759,11 +701,7 @@ class HackingSolver:
             current_pos = self._move(current_pos, key)
             path_idx += 1
 
-            self._set_display_status(
-                display_name, current_pos, current_target_pos,
-                grid, path, path_idx,
-                ""
-            )
+            self._set_display_status(display_name, grid, current_pos)
 
             time.sleep(0.08)
 
