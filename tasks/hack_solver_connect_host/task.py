@@ -516,6 +516,46 @@ class HackingSolver:
         self._target_host_line_idx = None
         self._last_highlighted_rows = None
 
+    def _render_grid_row(self, row_idx, grid, cursor_pos):
+        cursor_cells = set()
+        pos = cursor_pos
+        for _ in range(self.CURSOR_LEN):
+            cursor_cells.add(pos)
+            pos = self._move(pos, "d")
+
+        row_start = row_idx * self.GRID_COLS
+        parts = []
+        for col in range(self.GRID_COLS):
+            cell_pos = row_start + col
+            val = grid[cell_pos]
+            cell_str = f"{val:02d}"
+            if cell_pos in cursor_cells:
+                parts.append(f"{C_HIGHLIGHT}{cell_str}{C_RESET}")
+            else:
+                parts.append(cell_str)
+        return " ".join(parts)
+
+    def _render_grid_rows(self, display_name, grid, cursor_pos):
+        new_highlighted = set()
+        pos = cursor_pos
+        for _ in range(self.CURSOR_LEN):
+            new_highlighted.add(pos // self.GRID_COLS)
+            pos = self._move(pos, "d")
+
+        if self._last_highlighted_rows is None:
+            rows_to_update = set(range(self.GRID_ROWS))
+        else:
+            rows_to_update = self._last_highlighted_rows ^ new_highlighted
+
+        for row_idx in rows_to_update:
+            row_str = self._render_grid_row(row_idx, grid, cursor_pos)
+            _log_buffer.replace_at(
+                self._grid_line_indices[row_idx],
+                f"[{display_name}] {row_str}"
+            )
+
+        self._last_highlighted_rows = new_highlighted
+
     def _verify_hack_complete(self, hwnd, offset):
         if self._trigger_matcher is None:
             return True
