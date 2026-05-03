@@ -468,8 +468,10 @@ class HackingSolver:
                 queue.append((next_pos, new_path))
         return []
 
-    def _set_status_line(self, display_name, cursor_pos, target_pos,
-                          path, path_idx, status_text):
+    def _set_display_status(self, display_name, cursor_pos, target_pos,
+                            grid, path, path_idx, status_text):
+        self._render_grid_rows(display_name, grid, cursor_pos)
+
         cr = cursor_pos // self.GRID_COLS + 1
         cc = cursor_pos % self.GRID_COLS + 1
         tr = target_pos // self.GRID_COLS + 1
@@ -487,12 +489,7 @@ class HackingSolver:
         else:
             line = pos
 
-        if self._status_line_idx is not None:
-            _log_buffer.replace_at(self._status_line_idx, f"[{display_name}] {line}")
-        else:
-            self._status_line_idx = _log_buffer.add(
-                f"[{display_name}] {line}"
-            )
+        _log_buffer.replace_at(self._status_line_idx, f"[{display_name}] {line}")
 
     def _init_display(self, display_name, target_str):
         self._clear_display()
