@@ -31,6 +31,9 @@ class Task(BaseTask):
         self._hacking_solver = solver
         return True
 
+    def execute_start_trigger(self, hwnd, confidence, scan_center):
+        pass
+
     def execute_step(self, step_index, hwnd, confidence, scan_center):
         action = self._step_actions[step_index]
         if action == "hack":
@@ -51,6 +54,7 @@ class HackingSolver:
         self._global_cfg = global_cfg
         self._auto_enter = auto_enter
         self._scan_interval = scan_ms / 1000.0
+        self._speed_ratio = 500.0 / max(scan_ms, 50)
         self._digit_templates = []
         self._grid_cfg = {}
         self._host_cfg = {}
@@ -58,8 +62,7 @@ class HackingSolver:
         self._fail_matcher = None
         self._grid_line_indices = []
         self._game_start_line_idx = None
-        self._target_host_line_idx = None
-        self._last_highlighted_rows = None
+        self._target_pos = None
 
     def set_trigger_matcher(self, matcher):
         self._trigger_matcher = matcher
@@ -475,66 +478,63 @@ class HackingSolver:
         self._game_start_line_idx = _log_buffer.add(
             f"[{display_name}] {C_YELLOW}{translate('hack.' + self._task_name + '.game_start')}{C_RESET}"
         )
-        self._target_host_line_idx = _log_buffer.add(
-            f"[{display_name}] {translate('hack.' + self._task_name + '.target_detected', target=f'{C_RED}{target_str}{C_RESET}')}"
-        )
         self._grid_line_indices = []
         for _ in range(self.GRID_ROWS):
             idx = _log_buffer.add(f"[{display_name}] ")
             self._grid_line_indices.append(idx)
-        self._last_highlighted_rows = None
 
     def _clear_display(self):
-        for idx in self._grid_line_indices:
-            _log_buffer.replace_at(idx, "")
-        if self._game_start_line_idx is not None:
-            _log_buffer.replace_at(self._game_start_line_idx, "")
-        if self._target_host_line_idx is not None:
-            _log_buffer.replace_at(self._target_host_line_idx, "")
         self._grid_line_indices = []
         self._game_start_line_idx = None
-        self._target_host_line_idx = None
-        self._last_highlighted_rows = None
+        self._target_pos = None
 
-    def _render_grid_row(self, row_idx, grid, cursor_pos):
+    def _render_grid_row(self, row_idx, grid, cursor_pos, target_pos):
         cursor_cells = set()
         pos = cursor_pos
         for _ in range(self.CURSOR_LEN):
             cursor_cells.add(pos)
             pos = self._move(pos, "d")
 
+        target_cells = set()
+        if target_pos is not None:
+            pos = target_pos
+            for _ in range(self.CURSOR_LEN):
+                target_cells.add(pos)
+                pos = self._move(pos, "d")
+
+        C_GRAY_BG = "\033[48;2;49;50;68m"
+        C_GRAY_BG_RED_FG = "\033[48;2;49;50;68m\033[38;2;243;139;168m"
+
         row_start = row_idx * self.GRID_COLS
         parts = []
-        for col in range(self.GRID_COLS):
+        col = 0
+        while col < self.GRID_COLS:
             cell_pos = row_start + col
             val = grid[cell_pos]
             cell_str = f"{val:02d}"
             if cell_pos in cursor_cells:
-                parts.append(f"{C_HIGHLIGHT}{cell_str}{C_RESET}")
+                chunk = [cell_str]
+                col += 1
+                while col < self.GRID_COLS and (row_start + col) in cursor_cells:
+                    chunk.append(f"{grid[row_start + col]:02d}")
+                    col += 1
+                style = C_GRAY_BG_RED_FG if cell_pos in target_cells else C_GRAY_BG
+                parts.append(f"{style}{' '.join(chunk)}{C_RESET}")
             else:
-                parts.append(cell_str)
+                if cell_pos in target_cells:
+                    parts.append(f"{C_RED}{cell_str}{C_RESET}")
+                else:
+                    parts.append(cell_str)
+                col += 1
         return " ".join(parts)
 
     def _render_grid_rows(self, display_name, grid, cursor_pos):
-        new_highlighted = set()
-        pos = cursor_pos
-        for _ in range(self.CURSOR_LEN):
-            new_highlighted.add(pos // self.GRID_COLS)
-            pos = self._move(pos, "d")
-
-        if self._last_highlighted_rows is None:
-            rows_to_update = set(range(self.GRID_ROWS))
-        else:
-            rows_to_update = self._last_highlighted_rows | new_highlighted
-
-        for row_idx in rows_to_update:
-            row_str = self._render_grid_row(row_idx, grid, cursor_pos)
+        for row_idx in range(self.GRID_ROWS):
+            row_str = self._render_grid_row(row_idx, grid, cursor_pos, self._target_pos)
             _log_buffer.replace_at(
                 self._grid_line_indices[row_idx],
                 f"[{display_name}] {row_str}"
             )
-
-        self._last_highlighted_rows = new_highlighted
 
     def _verify_hack_complete(self, hwnd, offset):
         if self._trigger_matcher is None:
@@ -596,12 +596,9 @@ class HackingSolver:
             _log_buffer.add(
                 f"[{display_name}] {C_RED}{translate('hack.' + self._task_name + '.target_not_found', target=target_str)}{C_RESET}"
             )
-            if low_conf:
-                _log_buffer.add(
-                    f"[{display_name}] {C_YELLOW}low_conf: {', '.join(low_conf)}{C_RESET}"
-                )
             return "reset"
 
+        self._target_pos = target_pos
         self._init_display(display_name, target_str)
 
         self._set_display_status(display_name, grid, cursor_pos)
@@ -617,15 +614,14 @@ class HackingSolver:
             if current_pos == current_target_pos:
                 retrack_count += 1
                 self._set_display_status(display_name, grid, current_pos)
-                time.sleep(0.3)
+                time.sleep(0.3 / self._speed_ratio)
 
                 re_image = capture_window(hwnd)
                 if re_image is None:
                     if self._check_fail(hwnd, offset):
                         return "reset"
-                    self._clear_display()
-                    _log_buffer.add(f"[{display_name}] {C_RED}{translate('hack.' + self._task_name + '.capture_failed')}{C_RESET}")
-                    return None
+                    time.sleep(0.5 / self._speed_ratio)
+                    continue
 
                 if self._trigger_matcher is not None:
                     found, _ = self._trigger_matcher.match_from_image(re_image, 0.95, offset)
@@ -643,10 +639,11 @@ class HackingSolver:
                     return "reset"
 
                 current_target_pos = new_target_pos
+                self._target_pos = new_target_pos
 
                 if current_pos == current_target_pos and self._auto_enter:
                     send_key("enter")
-                    time.sleep(0.5)
+                    time.sleep(0.5 / self._speed_ratio)
                     re_image = capture_window(hwnd)
                     if re_image is not None:
                         if self._trigger_matcher is not None:
@@ -682,6 +679,7 @@ class HackingSolver:
                     if new_target_pos is not None:
                         if new_target_pos != current_target_pos:
                             current_target_pos = new_target_pos
+                            self._target_pos = new_target_pos
 
                     path = []
                     path_idx = 0
@@ -703,7 +701,7 @@ class HackingSolver:
 
             self._set_display_status(display_name, grid, current_pos)
 
-            time.sleep(0.08)
+            time.sleep(0.08 / self._speed_ratio)
 
     def run(self, hwnd):
         display_name = translate("task." + self._task_name)
@@ -718,7 +716,7 @@ class HackingSolver:
                     self._clear_display()
                     _log_buffer.add(f"[{display_name}] {C_YELLOW}{translate('hack.' + self._task_name + '.resetting')}{C_RESET}")
                     send_key("enter")
-                    time.sleep(1.0)
+                    time.sleep(1.0 / self._speed_ratio)
                     continue
                 if result is not True:
                     self._clear_display()
