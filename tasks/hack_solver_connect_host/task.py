@@ -545,7 +545,7 @@ class HackingSolver:
         if self._last_highlighted_rows is None:
             rows_to_update = set(range(self.GRID_ROWS))
         else:
-            rows_to_update = self._last_highlighted_rows ^ new_highlighted
+            rows_to_update = self._last_highlighted_rows | new_highlighted
 
         for row_idx in rows_to_update:
             row_str = self._render_grid_row(row_idx, grid, cursor_pos)

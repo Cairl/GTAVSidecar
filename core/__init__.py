@@ -35,6 +35,7 @@ _INJECT_SYMBOLS = {
     "C_RESET": renderer.C_RESET,
     "C_GRAY": renderer.C_GRAY,
     "C_BORDER": renderer.C_BORDER,
+    "C_HIGHLIGHT": renderer.C_HIGHLIGHT,
     "C_BLUE": "\033[38;2;137;180;250m",
 }
 
