@@ -57,6 +57,10 @@ class HackingSolver:
         self._trigger_matcher = None
         self._fail_matcher = None
         self._status_line_idx = None
+        self._grid_line_indices = []
+        self._game_start_line_idx = None
+        self._target_host_line_idx = None
+        self._last_highlighted_rows = None
 
     def set_trigger_matcher(self, matcher):
         self._trigger_matcher = matcher
@@ -490,8 +494,27 @@ class HackingSolver:
                 f"[{display_name}] {line}"
             )
 
+    def _init_display(self, display_name, target_str):
+        self._clear_display()
+        self._game_start_line_idx = _log_buffer.add(
+            f"[{display_name}] {C_YELLOW}{translate('hack.' + self._task_name + '.game_start')}{C_RESET}"
+        )
+        self._target_host_line_idx = _log_buffer.add(
+            f"[{display_name}] {translate('hack.' + self._task_name + '.target_detected', target=f'{C_RED}{target_str}{C_RESET}')}"
+        )
+        self._grid_line_indices = []
+        for _ in range(self.GRID_ROWS):
+            idx = _log_buffer.add(f"[{display_name}] ")
+            self._grid_line_indices.append(idx)
+        self._status_line_idx = _log_buffer.add(f"[{display_name}] ")
+        self._last_highlighted_rows = None
+
     def _clear_display(self):
+        self._grid_line_indices = []
         self._status_line_idx = None
+        self._game_start_line_idx = None
+        self._target_host_line_idx = None
+        self._last_highlighted_rows = None
 
     def _verify_hack_complete(self, hwnd, offset):
         if self._trigger_matcher is None:
