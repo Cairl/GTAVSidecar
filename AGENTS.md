@@ -267,6 +267,45 @@ class Task(BaseTask):
 
 ---
 
+## 26w18k
+
+### 修改范围
+- `tasks/hack_solver_connect_host/task.py` — `_find_target_in_grid` 方向键修复（`"right"`→`"d"`）；新增 `_set_status_line` 单行原地刷新 + `_clear_display` 方法；`HackingSolver.__init__` 新增 `_status_line_idx`；Task 类新增 `default_config`
+- `tasks/close_game_at_results/task.py` — 新增 `default_config = {"wait_ms": 2000}`
+- `core/task_base.py` — `BaseTask` 新增 `default_config: dict = {}` 类属性
+- `core/config.py` — `_build_default_config` + `_flatten_task_configs` 合并 `default_config`
+- `core/log_buffer.py` — 移除 `_hack_display`、`_hack_display_lock`、`_hack_display_update()`、`_hack_display_clear()`
+- `core/__init__.py` — 移除 `_hack_display_update`、`_hack_display_clear` 注入符号
+- `core/renderer.py` — 移除 `build_grid_panel()` 函数
+- `main.py` — 移除 `build_grid_panel()` 调用及 `grid_panel_h` / `log_avail` 相关计算
+- `config.json` — connect_host 新增 `auto_enter: true`；close_game_at_results 新增 `wait_ms: 2000`
+
+### 原因与背景
+1. 连接主机始终在"目标 Host → 重置游戏"间循环：`_find_target_in_grid` 中 `self._move(current, "right")` 调用 `_move` 方法，但 `_move` 仅处理 `"w"/"a"/"s"/"d"` 四个 WASD 键，`"right"` 不匹配任何分支成为 no-op，导致第 2-4 个目标数字始终与同一格比较，目标永远找不到
+2. 连接主机原有的 `_hack_display_update` → `build_grid_panel` 使用独立面板渲染 8×10 网格，与日志行分离，用户要求改为电压连线那样的 log-line + `replace_at` 原地刷新方式
+3. 配置文件缺少 `auto_enter` 选项，且首次运行时仅生成 `enabled` + `scan_ms`，其他任务自定义配置项需要手动补全，缺少自动生成机制
+
+### 行为差异
+
+| 场景 | 修改前 | 修改后 |
+|------|--------|--------|
+| 连接主机寻目标 | 始终找不到目标，循环重置 | 正确匹配 4 位目标序列并执行路径导航 |
+| 连接主机破解回显 | 独立网格面板渲染 | 单行日志 `add()` + `replace_at()` 原地刷新 |
+| `auto_enter` 配置 | 不存在，代码硬编码默认 True | config.json 生成时自动包含，可修改 |
+| 首次运行 config.json 生成 | 仅 `enabled` + `scan_ms` | 合并 Task 类的 `default_config`，包含所有自定义选项 |
+| `build_grid_panel` | 存在且仅被 connect_host 消费 | 完全移除 |
+
+### 系统影响
+- `_hack_display` 基础设施因 connect_host 是唯一消费者，已从 4 个文件中完全移除
+- `default_config` 机制向后兼容：不定义 `default_config` 的 Task 类行为不变
+- 新任务添加自定义配置项时只需在 Task 类定义 `default_config`，无需修改 `_build_default_config`
+
+### 关键问题
+- `_move` 在 `_find_target_in_grid` 中的 `"right"` 与 `_plan_path` 中的 `"d"` 不一致，属代码编写疏忽
+- `replace_at` 仅替换消息体，需在 msg 中包含 `[display_name]` 前缀以保持日志行格式一致
+
+---
+
 ## 26w18i
 
 ### 修改范围

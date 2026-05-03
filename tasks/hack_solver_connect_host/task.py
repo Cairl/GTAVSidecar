@@ -13,6 +13,7 @@ class Task(BaseTask):
     steps = [{"overlay": "hack", "lang": "auto", "action": "hack"}]
     step_timeout_ms = 60000
     run_once = True
+    default_config = {"auto_enter": True}
 
     def __init__(self, task_name, task_cfg, global_cfg):
         super().__init__(task_name, task_cfg, global_cfg)
@@ -55,6 +56,7 @@ class HackingSolver:
         self._host_cfg = {}
         self._trigger_matcher = None
         self._fail_matcher = None
+        self._status_line_idx = None
 
     def set_trigger_matcher(self, matcher):
         self._trigger_matcher = matcher
@@ -439,7 +441,7 @@ class HackingSolver:
                     match = False
                     break
                 if k < self.CURSOR_LEN - 1:
-                    current = self._move(current, "right")
+                    current = self._move(current, "d")
             if match:
                 return pos
         return None
@@ -462,18 +464,34 @@ class HackingSolver:
                 queue.append((next_pos, new_path))
         return []
 
-    def _update_display(self, grid, cursor_pos, target_pos, target_values,
-                        path, path_step, status):
-        _hack_display_update(
-            grid=grid[:],
-            cursor_pos=cursor_pos,
-            target_pos=target_pos,
-            target_values=target_values[:],
-            path=path[:],
-            path_step=path_step,
-            status=status,
-            task_name=self._task_name,
-        )
+    def _set_status_line(self, display_name, cursor_pos, target_pos,
+                          path, path_idx, status_text):
+        cr = cursor_pos // self.GRID_COLS + 1
+        cc = cursor_pos % self.GRID_COLS + 1
+        tr = target_pos // self.GRID_COLS + 1
+        tc = target_pos % self.GRID_COLS + 1
+
+        if path and path_idx > 0:
+            key = path[path_idx - 1]
+            step = f"{key} → R{cr}C{cc} ({path_idx}/{len(path)})"
+            pos = f"{C_GRAY}[R{cr}C{cc} → R{tr}C{tc}] {step}{C_RESET}"
+        else:
+            pos = f"{C_GRAY}[R{cr}C{cc} → R{tr}C{tc}]{C_RESET}"
+
+        if status_text:
+            line = f"{status_text} {pos}"
+        else:
+            line = pos
+
+        if self._status_line_idx is not None:
+            _log_buffer.replace_at(self._status_line_idx, f"[{display_name}] {line}")
+        else:
+            self._status_line_idx = _log_buffer.add(
+                f"[{display_name}] {line}"
+            )
+
+    def _clear_display(self):
+        self._status_line_idx = None
 
     def _verify_hack_complete(self, hwnd, offset):
         if self._trigger_matcher is None:
@@ -498,12 +516,12 @@ class HackingSolver:
         return found
 
     def _attempt_hack(self, hwnd, display_name):
-        _hack_display_clear()
+        self._clear_display()
         image = capture_window(hwnd)
         if image is None:
             if self._check_fail(hwnd, get_client_offset(hwnd)):
                 return "reset"
-            _hack_display_clear()
+            self._clear_display()
             _log_buffer.add(f"[{display_name}] {C_RED}{translate('hack.' + self._task_name + '.capture_failed')}{C_RESET}")
             return None
 
@@ -513,7 +531,7 @@ class HackingSolver:
         if len(target) < self.CURSOR_LEN:
             if self._check_fail(hwnd, offset):
                 return "reset"
-            _hack_display_clear()
+            self._clear_display()
             _log_buffer.add(
                 f"[{display_name}] {C_RED}{translate('hack.' + self._task_name + '.target_read_failed')}{C_RESET}"
             )
@@ -528,11 +546,26 @@ class HackingSolver:
 
         target_pos = self._find_target_in_grid(target[:self.CURSOR_LEN], grid)
         if target_pos is None:
+            target_str = ".".join(f"{v:02d}" for v in target[:self.CURSOR_LEN])
+            _log_buffer.add(
+                f"[{display_name}] {C_RED}{translate('hack.' + self._task_name + '.target_not_found', target=target_str)}{C_RESET}"
+            )
+            for r in range(self.GRID_ROWS):
+                row_vals = grid[r * self.GRID_COLS:(r + 1) * self.GRID_COLS]
+                row_str = " ".join(f"{v:02d}" for v in row_vals)
+                _log_buffer.add(f"  R{r + 1}: {C_GRAY}{row_str}{C_RESET}")
+            _log_buffer.add(
+                f"[{display_name}] {C_GRAY}cursor_pos={cursor_pos} (R{cursor_pos // self.GRID_COLS + 1}C{cursor_pos % self.GRID_COLS + 1}){C_RESET}"
+            )
+            if low_conf:
+                _log_buffer.add(
+                    f"[{display_name}] {C_YELLOW}low_conf: {', '.join(low_conf)}{C_RESET}"
+                )
             return "reset"
 
-        self._update_display(
-            grid, cursor_pos, target_pos, target[:self.CURSOR_LEN],
-            [], 0, f"{C_GRAY}{translate('hack.' + self._task_name + '.planning_path')}{C_RESET}"
+        self._set_status_line(
+            display_name, cursor_pos, target_pos,
+            [], 0, translate('hack.' + self._task_name + '.planning_path')
         )
 
         current_pos = cursor_pos
@@ -545,8 +578,8 @@ class HackingSolver:
         while True:
             if current_pos == current_target_pos:
                 retrack_count += 1
-                self._update_display(
-                    grid, current_pos, current_target_pos, target[:self.CURSOR_LEN],
+                self._set_status_line(
+                    display_name, current_pos, current_target_pos,
                     [], 0,
                     f"{C_GREEN}{translate('hack.' + self._task_name + '.target_aligned', count=retrack_count)}{C_RESET}"
                 )
@@ -556,7 +589,7 @@ class HackingSolver:
                 if re_image is None:
                     if self._check_fail(hwnd, offset):
                         return "reset"
-                    _hack_display_clear()
+                    self._clear_display()
                     _log_buffer.add(f"[{display_name}] {C_RED}{translate('hack.' + self._task_name + '.capture_failed')}{C_RESET}")
                     return None
 
@@ -596,8 +629,8 @@ class HackingSolver:
                 cc = current_pos % self.GRID_COLS + 1
                 tr = current_target_pos // self.GRID_COLS + 1
                 tc = current_target_pos % self.GRID_COLS + 1
-                self._update_display(
-                    grid, current_pos, current_target_pos, target[:self.CURSOR_LEN],
+                self._set_status_line(
+                    display_name, current_pos, current_target_pos,
                     [], 0,
                     f"{C_GRAY}{translate('hack.' + self._task_name + '.reread_status', cr=cr, cc=cc, tr=tr, tc=tc)}{C_RESET}"
                 )
@@ -628,8 +661,8 @@ class HackingSolver:
                     cc = current_pos % self.GRID_COLS + 1
                     tr = current_target_pos // self.GRID_COLS + 1
                     tc = current_target_pos % self.GRID_COLS + 1
-                    self._update_display(
-                        grid, current_pos, current_target_pos, target[:self.CURSOR_LEN],
+                    self._set_status_line(
+                        display_name, current_pos, current_target_pos,
                         [], 0,
                         f"{C_GRAY}{translate('hack.' + self._task_name + '.reread_status', cr=cr, cc=cc, tr=tr, tc=tc)}{C_RESET}"
                     )
@@ -647,10 +680,10 @@ class HackingSolver:
             current_pos = self._move(current_pos, key)
             path_idx += 1
 
-            self._update_display(
-                grid, current_pos, current_target_pos, target[:self.CURSOR_LEN],
+            self._set_status_line(
+                display_name, current_pos, current_target_pos,
                 path, path_idx,
-                f"{C_GRAY}{key} -> R{current_pos // 10 + 1}C{current_pos % 10 + 1}{C_RESET}"
+                ""
             )
 
             time.sleep(0.08)
@@ -665,15 +698,15 @@ class HackingSolver:
             while True:
                 result = self._attempt_hack(hwnd, display_name)
                 if result == "reset":
-                    _hack_display_clear()
+                    self._clear_display()
                     _log_buffer.add(f"[{display_name}] {C_YELLOW}{translate('hack.' + self._task_name + '.resetting')}{C_RESET}")
                     send_key("enter")
                     time.sleep(1.0)
                     continue
                 if result is not True:
-                    _hack_display_clear()
+                    self._clear_display()
                 else:
-                    _hack_display_update(game_over=True)
+                    self._clear_display()
                     _log_buffer.add(f"[{display_name}] {C_GREEN}{translate('hack.' + self._task_name + '.completed')}{C_RESET}")
                 return result is True
         finally:

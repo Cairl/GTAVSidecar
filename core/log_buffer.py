@@ -40,16 +40,3 @@ class _LogBuffer:
 
 
 _log_buffer = _LogBuffer()
-
-_hack_display: dict = {}
-_hack_display_lock = threading.Lock()
-
-
-def _hack_display_update(**kwargs) -> None:
-    with _hack_display_lock:
-        _hack_display.update(kwargs)
-
-
-def _hack_display_clear() -> None:
-    with _hack_display_lock:
-        _hack_display.clear()

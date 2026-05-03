@@ -5,6 +5,7 @@ class Task(BaseTask):
     group = None
     start_trigger = {"overlay": "trigger", "lang": "global", "scan": "horizontal", "click": False}
     steps = []
+    default_config = {"wait_ms": 2000}
 
     def execute_start_trigger(self, hwnd, confidence, scan_center):
         kill_delay_ms = self._task_cfg.get("wait_ms", 2000)

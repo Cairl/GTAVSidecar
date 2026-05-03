@@ -54,6 +54,7 @@
     "hack.hack_solver_connect_host.capture_failed": "截屏失败",
     "hack.hack_solver_connect_host.target_read_failed": "目标识别失败",
     "hack.hack_solver_connect_host.target_detected": "目标 Host: {target}",
+    "hack.hack_solver_connect_host.target_not_found": "目标 {target} 未在网格中找到",
     "hack.hack_solver_connect_host.planning_path": "准备寻路...",
     "hack.hack_solver_connect_host.target_aligned": "已对位目标 (第{count}次)，等待重读...",
     "hack.hack_solver_connect_host.reread_status": "重读: 光标R{cr}C{cc} 目标R{tr}C{tc}",

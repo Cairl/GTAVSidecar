@@ -136,10 +136,7 @@ def main() -> None:
             )
             task_panel_h = len(task_lines)
 
-            grid_lines = renderer.build_grid_panel()
-            grid_panel_h = len(grid_lines)
-
-            log_avail = term_h - task_panel_h - grid_panel_h - 1
+            log_avail = term_h - task_panel_h - 1
             entries = log_buffer._log_buffer.recent(log_avail) if log_avail > 0 else []
 
             lines = task_lines[:]
@@ -147,7 +144,6 @@ def main() -> None:
                 lines.append("")
             for entry in entries:
                 lines.append(renderer._truncate_visible(entry, term_w))
-            lines.extend(grid_lines)
 
             out_buf: list[str] = []
             for i, line in enumerate(lines[:term_h]):

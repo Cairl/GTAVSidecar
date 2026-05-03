@@ -64,7 +64,14 @@ def _flatten_task_configs(config):
             if name == "anti_afk":
                 continue
             if name not in result and os.path.isfile(os.path.join(tasks_dir, name, "task.py")):
-                result[name] = {"enabled": False, "scan_ms": 500}
+                mod = _load_task_module(name)
+                task_cfg = {"enabled": False, "scan_ms": 500}
+                if mod:
+                    task_cls = getattr(mod, "Task", None)
+                    if task_cls:
+                        defaults = getattr(task_cls, "default_config", {})
+                        task_cfg.update(defaults)
+                result[name] = task_cfg
 
     return result
 
@@ -167,13 +174,16 @@ def _build_default_config() -> dict:
         if task_cls is None:
             continue
         group = getattr(task_cls, "group", None)
+        defaults = getattr(task_cls, "default_config", {})
+        task_cfg = {"enabled": False, "scan_ms": 500}
+        task_cfg.update(defaults)
         if group:
             if group not in config:
                 config[group] = {}
             sub_name = name[len(group) + 1:] if name.startswith(f"{group}_") else name
-            config[group][sub_name] = {"enabled": False, "scan_ms": 500}
+            config[group][sub_name] = task_cfg
         else:
-            config[name] = {"enabled": False, "scan_ms": 500}
+            config[name] = task_cfg
 
     return config
 

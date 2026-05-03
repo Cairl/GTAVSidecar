@@ -135,6 +135,7 @@ class BaseTask:
     group: str | None = None
     step_timeout_ms: int = 30000
     run_once: bool = False
+    default_config: dict = {}
 
     def __init__(self, task_name: str, task_cfg: dict, global_cfg: dict):
         self._task_name = task_name

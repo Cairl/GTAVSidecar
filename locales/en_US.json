@@ -54,6 +54,7 @@
     "hack.hack_solver_connect_host.capture_failed": "Capture failed",
     "hack.hack_solver_connect_host.target_read_failed": "Failed to detect target",
     "hack.hack_solver_connect_host.target_detected": "Target Host: {target}",
+    "hack.hack_solver_connect_host.target_not_found": "Target {target} not found in grid",
     "hack.hack_solver_connect_host.planning_path": "Planning path...",
     "hack.hack_solver_connect_host.target_aligned": "Target aligned ({count}), waiting for re-read...",
     "hack.hack_solver_connect_host.reread_status": "Re-read: Cursor R{cr}C{cc} Target R{tr}C{tc}",

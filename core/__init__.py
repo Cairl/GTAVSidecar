@@ -26,8 +26,6 @@ _INJECT_SYMBOLS = {
     "translate": i18n.translate,
     "load_config": config.load_config,
     "_log_buffer": log_buffer._log_buffer,
-    "_hack_display_update": log_buffer._hack_display_update,
-    "_hack_display_clear": log_buffer._hack_display_clear,
     "resolve_game_language": config.resolve_game_language,
     "GAME_PROCESS_NAME": windows_api.GAME_PROCESS_NAME,
     "BASE_DIR": config.BASE_DIR,
