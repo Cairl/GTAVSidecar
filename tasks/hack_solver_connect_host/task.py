@@ -599,7 +599,7 @@ class HackingSolver:
             _log_buffer.add(
                 f"[{display_name}] {C_RED}{translate('hack.' + self._task_name + '.target_not_found', target=target_str)}{C_RESET}"
             )
-            return "reset"
+            return None
 
         self._target_pos = target_pos
         self._init_display(display_name, target_str)
