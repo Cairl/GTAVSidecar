@@ -76,6 +76,8 @@ class TaskRunner:
         if self._task is None:
             if not self._load_task():
                 return
+        self._sequence_started = False
+        self._timeout_count = 0
         self._running = True
         self._status = "running"
         self._thread = threading.Thread(target=self._run, daemon=True)
