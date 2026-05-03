@@ -777,9 +777,6 @@ class HackingSolver:
                     continue
                 if result is not True:
                     self._clear_display()
-                else:
-                    self._clear_display()
-                    _log_buffer.add(f"[{display_name}] {C_GREEN}{translate('hack.' + self._task_name + '.completed')}{C_RESET}")
                 return result is True
         finally:
             unclip_cursor()
