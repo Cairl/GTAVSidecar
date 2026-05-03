@@ -59,6 +59,7 @@ def main() -> None:
     config_lang = cfg.get("lang", "auto")
     game_lang = config.resolve_game_language(config_lang)
     i18n.i18n_init(game_lang, BASE_DIR)
+    log_buffer._log_buffer.set_log_dir(os.path.join(BASE_DIR, "logs"))
 
     if os.name == "nt":
         os.system("")

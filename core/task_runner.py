@@ -22,7 +22,6 @@ class TaskRunner:
         self._sequence_started = False
         self._timeout_count = 0
         self._cycle_count = 0
-        self._run_once_checked = False
         self._load_task()
 
     def _load_task(self) -> bool:
@@ -77,7 +76,6 @@ class TaskRunner:
         if self._task is None:
             if not self._load_task():
                 return
-        self._run_once_checked = False
         self._running = True
         self._status = "running"
         self._thread = threading.Thread(target=self._run, daemon=True)
@@ -108,7 +106,6 @@ class TaskRunner:
         self._current_step = 0
         self._sequence_started = False
         self._timeout_count = 0
-        self._run_once_checked = False
         if self._task:
             self._task.reload(task_cfg, global_cfg)
         if was_running:
@@ -203,13 +200,6 @@ class TaskRunner:
                             break
                         time.sleep(0.1)
                 else:
-                    if self._task.run_once and not self._run_once_checked:
-                        self._run_once_checked = True
-                        _log_mod._log_buffer.add(
-                            f"[{display_name}] \033[38;2;243;139;168m{_i18n.translate('trigger_not_found')}\033[0m"
-                        )
-                        self._disable_and_stop_in_config()
-                        continue
                     time.sleep(idle_interval)
                 continue
 
