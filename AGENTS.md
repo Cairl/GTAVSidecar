@@ -129,6 +129,54 @@ class Task(BaseTask):
 
 ---
 
+## 26w18m
+
+### 修改范围
+- `tasks/hack_solver_connect_host/task.py` — 网格刷新改为全量统筹刷新；移除 `_last_highlighted_rows` 增量刷新逻辑
+- `tasks/hack_solver_connect_host/task.py` — `scan_ms` 应用到破解全过程（按键间隔、动画等待、重读间隔），新增 `_speed_ratio` 比例因子
+- `tasks/hack_solver_connect_host/task.py` — 网格渲染视觉重构：目标数字红色前景、光标灰色背景连续色块、重合时灰底红字
+- `tasks/hack_solver_connect_host/task.py` — 移除目标 Host 独立显示行（`target_detected` 从 `_init_display` 中移除）
+- `tasks/hack_solver_connect_host/task.py` — 移除 `low_conf` 调试输出残留
+- `tasks/hack_solver_connect_host/task.py` — `_clear_display` 不再用 `replace_at` 清空日志行内容，仅重置内部索引
+- `tasks/hack_solver_connect_host/task.py` — while 循环中 `capture_window` 失败改为 `continue` 重试，避免偶发截图失败导致任务停用
+- `tasks/hack_solver_connect_host/task.py` — `Task` 类覆写 `execute_start_trigger` 为 `pass`，去掉 trigger 检测回显
+
+### 原因与背景
+1. 网格刷新使用增量策略（`_last_highlighted_rows | new_highlighted`），光标同行内移动或网格滚动后非高亮行数字变化时不会刷新，导致显示与实际状态不一致
+2. `scan_ms` 仅控制屏幕重读间隔，按键频率（0.08s）、动画等待（0.3s/0.5s）全部硬编码，用户调快 `scan_ms` 体感无区别
+3. 目标 Host 行与网格阵列信息重复，且用户要求直接在网格中用颜色标识目标和光标
+4. `low_conf` 调试输出在 26w18k 清理 `_hack_display` 基础设施时被遗漏
+5. `_clear_display` 用 `replace_at(idx, "")` 把日志行变成只有时间戳的空行，视觉上残留难看空行；且 `capture_window` 偶发失败返回 `None` 导致 `run_once` 机制把任务停用，用户感知为"崩溃"
+6. trigger 检测回显 `[连接主机] 连接主机` 与 `_init_display` 的 `[连接主机] 游戏开始` 间隔 2 秒重复出现
+
+### 行为差异
+
+| 场景 | 修改前 | 修改后 |
+|------|--------|--------|
+| 网格刷新 | 仅刷新高亮行变化的部分行 | 始终一次性刷新全部 8 行 |
+| `scan_ms=250` 效果 | 仅重读间隔减半，按键速度不变 | 按键间隔、动画等待、重读全部按比例加速 |
+| 目标数字标识 | 独立一行 "目标 Host: xx.xx.xx.xx" | 网格中目标序列 4 格红色字体 |
+| 光标标识 | 无 / 灰底反色 | 深灰背景连续色块（`49;50;68`） |
+| 光标与目标重合 | 灰色背景优先 | 深灰背景 + 红色字体 |
+| 低置信度调试 | 输出 `low_conf: R1C1=...` | 已移除 |
+| 显示清除 | `replace_at` 清空为只有时间戳的空行 | 仅重置索引，旧行保持最后内容自然淡出 |
+| 截图偶发失败 | 清空显示 → 输出错误 → 返回 `None` → 任务停用 | 休眠 0.5s 后继续循环，自动重试 |
+| trigger 检测回显 | `[连接主机] 连接主机` + `[连接主机] 游戏开始` | 仅 `[连接主机] 游戏开始` |
+
+### 系统影响
+- `_last_highlighted_rows` 已完全移除，简化渲染逻辑
+- `scan_ms` 下限保护 `max(scan_ms, 50)` 防止延迟接近 0
+- `_clear_display` 不再修改 `log_buffer` 内容，与 `replace_at` 实现解耦
+- `execute_start_trigger` 覆写仅影响 `connect_host`，其他任务不变
+
+### 关键问题
+- 增量刷新初版用 XOR 计算变化行，光标同行移动时高亮集合不变导致不更新；修复为全量刷新
+- `scan_ms` 不生效根因是按键/动画硬编码与配置无关，需统一比例缩放
+- `capture_window` 返回 `None` 可能是暂时性窗口状态变化（遮挡/最小化），不应直接终止任务
+- 深灰背景色 `49;50;68` 经用户多次调整确定，与终端默认暗色主题协调
+
+---
+
 ## 26w18f
 
 ### 修改范围
