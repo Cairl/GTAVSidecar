@@ -584,7 +584,6 @@ class HackingSolver:
         return found
 
     def _attempt_hack(self, hwnd, display_name):
-        self._clear_display()
         image = capture_window(hwnd)
         if image is None:
             if self._check_fail(hwnd, get_client_offset(hwnd)):
