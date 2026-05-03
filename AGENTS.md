@@ -328,3 +328,50 @@ class Task(BaseTask):
 ### 关键问题
 - ☒ 与 ☐ 缩进需在同一列对齐，分组标题前缀与父任务完全一致（`PAD + 符号 + 2 空格`）
 - 子任务缩进保留 2 空格差异，确保层次可辨识同时不过深
+
+---
+
+## 26w18l
+
+### 修改范围
+- `tasks/hack_solver_connect_host/task.py` — 新增 `_init_display`、`_render_grid_row`、`_render_grid_rows` 三个方法；`_set_status_line` 替换为 `_set_display_status`；创建 8 行网格占位符 + 1 行状态行显示架构；后续又完全移除状态行，改为纯网格显示；`_clear_display` 增加清空旧显式行内容避免重试时残留；移除 `_attempt_hack` 入口的提前 `_clear_display()`
+- `core/__init__.py` — `_INJECT_SYMBOLS` 新增 `C_HIGHLIGHT` 注入
+- `core/log_buffer.py` — 新增 `set_log_dir()`、`_ensure_log_file()`、`_rotate_logs()` 方法；`add()` 内同步写入纯文本日志文件；`_ANSI_RE` 正则剥离颜色码；`_max_log_files = 5` 自动轮替
+- `core/task_runner.py` — 移除 `run_once` 任务首次未检测到 trigger 就停用的提前失败逻辑，删除 `_run_once_checked` 变量及相关引用
+- `main.py` — 新增 `signal.signal(signal.SIGINT, signal.SIG_IGN)` 阻止 Ctrl+C 退出；`getwch()` 中显式吞掉 `\x1b`（Esc 键）；调用 `log_buffer._log_buffer.set_log_dir()` 初始化日志目录
+- `locales/zh_CN.json` — 新增 `hack.hack_solver_connect_host.game_start`、`game_over` 翻译键
+- `locales/en_US.json` — 同上
+- `locales/zh_TW.json` — 同上
+- `.gitignore` — 新增 `logs/`
+
+### 原因与背景
+1. 连接主机破解回显仅有一行状态文本（"准备寻路…"→"R1C3→R1C2 w→…"），用户看不到完整 8×10 网格，无法直观了解破解进度。需要类似电压连线的多行面板实时刷新方式
+2. `run_once = True` 的任务在首次扫描未发现 trigger 时立即停用，导致用户必须在游戏内出现黑客图标后才能去菜单开启任务。正确行为应为：开启任务→持续扫描→检测到图标→执行→完成→停用
+3. 用户可能误按 Ctrl+C 或 Esc 导致程序退出，需要防护
+4. 日志仅在内存中，程序退出后无法回溯排查问题
+
+### 行为差异
+
+| 场景 | 修改前 | 修改后 |
+|------|--------|--------|
+| 连接主机破解回显 | 单行状态文本原地刷新 | 游戏开始→目标 Host→8 行网格（光标高亮实时刷新）→游戏结束，网格始终可见 |
+| 连接主机光标高亮 | 无高亮 | 光标覆盖的 4 个单元格 `C_HIGHLIGHT` 反色背景 |
+| 连接主机状态行 | 持续显示"已对位目标 (第N次)"、"R1C1→R2C3 w→(3/5)"等 | 已移除，仅保留网格 |
+| 连接主机重试时旧显示 | 残留空行（仅时间戳） | `_clear_display` 清空旧显示行内容，避免重试时残留 |
+| 连接主机新一轮触发时 | 立即清空上次显示（可能在识别失败后只看到空行） | 等 `_init_display` 创建新显示时才清旧，失败时保持上次成功结果 |
+| `run_once` 任务开启后 | 首次扫描无 trigger 即停用 | 持续扫描直到检测到 trigger 并完成执行后才停用 |
+| 日志持久化 | 内存中，退出即丢失 | 实时写入 `logs/session_*.log`，剥离 ANSI 颜色码为纯文本，保留最近 5 个文件 |
+| Ctrl+C / Esc | 退出程序 | 被忽略，无法退出 |
+
+### 系统影响
+- 连接主机回显从 1 行变为 10 行（2 固定行 + 8 网格行），占用更多日志缓冲空间，但在 `_log_buffer` 200 行上限内有余量
+- `C_HIGHLIGHT` 注入到所有 task.py 模块，现有任务无影响，新任务可直接使用
+- `_run_once_checked` 已从 `TaskRunner.__init__`、`start()`、`reload()` 三处移除
+- 日志文件 `logs/` 已加入 `.gitignore`，不影响版本控制
+- `signal.SIG_IGN` 在主线程注册，全局生效，任务线程不受影响
+
+### 关键问题
+- 增量刷新初版使用 XOR 计算高亮行变化，仅更新"高亮状态改变"的行。但光标同行内移动时高亮行集合不变（XOR 为空），网格不更新。修复为 union（`|`），始终刷新所有高亮行
+- `C_HIGHLIGHT` 定义在 `core/renderer.py` 但未注入到 task 模块全局符号表，直接使用会 `NameError`。已补入 `_INJECT_SYMBOLS`
+- `_attempt_hack` 入口调用 `_clear_display()` 在新一轮触发时立即清空上次成功破解的回显，若新一轮识别失败则只留空行。修复为移除此调用，`_init_display` 创建新显示时自行清旧
+- `_init_display` 内 `_log_buffer.add(target_detected)` 与旧代码中独立的 `_log_buffer.add(target_detected)` 导致目标 Host 行重复出现。已移除独立调用
