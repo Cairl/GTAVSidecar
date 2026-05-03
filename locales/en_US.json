@@ -60,6 +60,8 @@
     "hack.hack_solver_connect_host.reread_status": "Re-read: Cursor R{cr}C{cc} Target R{tr}C{tc}",
     "hack.hack_solver_connect_host.resetting": "Resetting game",
     "hack.hack_solver_connect_host.completed": "Hack complete",
+    "hack.hack_solver_connect_host.game_start": "Game started",
+    "hack.hack_solver_connect_host.game_over": "Game over",
 
     "anti_afk_sent": "Sent key {key_name}",
     "status_connected": "Connected",

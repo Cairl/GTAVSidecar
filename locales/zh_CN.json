@@ -60,6 +60,8 @@
     "hack.hack_solver_connect_host.reread_status": "重读: 光标R{cr}C{cc} 目标R{tr}C{tc}",
     "hack.hack_solver_connect_host.resetting": "重置游戏",
     "hack.hack_solver_connect_host.completed": "破解完成",
+    "hack.hack_solver_connect_host.game_start": "游戏开始",
+    "hack.hack_solver_connect_host.game_over": "游戏结束",
 
     "anti_afk_sent": "发送按键 {key_name}",
     "status_connected": "已连接",
