@@ -639,7 +639,7 @@ class HackingSolver:
 
                 new_target_pos = self._find_target_in_grid(target[:self.CURSOR_LEN], grid)
                 if new_target_pos is None:
-                    return None
+                    return "reset"
 
                 current_target_pos = new_target_pos
                 self._target_pos = new_target_pos

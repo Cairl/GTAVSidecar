@@ -423,3 +423,36 @@ class Task(BaseTask):
 - `C_HIGHLIGHT` 定义在 `core/renderer.py` 但未注入到 task 模块全局符号表，直接使用会 `NameError`。已补入 `_INJECT_SYMBOLS`
 - `_attempt_hack` 入口调用 `_clear_display()` 在新一轮触发时立即清空上次成功破解的回显，若新一轮识别失败则只留空行。修复为移除此调用，`_init_display` 创建新显示时自行清旧
 - `_init_display` 内 `_log_buffer.add(target_detected)` 与旧代码中独立的 `_log_buffer.add(target_detected)` 导致目标 Host 行重复出现。已移除独立调用
+
+---
+
+## 26w19a
+
+### 修改范围
+- `core/task_runner.py` — `stop()` 新增 `_reset_state()` 调用，重置 `_sequence_started`、`_current_step`、`_timeout_count`、`_last_confidence`
+- `core/task_runner.py` — 提取 `_reset_state()` 共用方法
+- `core/task_runner.py` — `_disable_and_stop_in_config()` 不再调用 `stop()`，改为直接设置 `_running=False` + `_status="stopped"` + `_reset_state()`，避免工作线程内 `join` 自身导致 `RuntimeError`
+- `tasks/hack_solver_voltlab/global/grid.json` — `animation_delay_ms` 3000→2500
+
+### 原因与背景
+1. 连接主机任务（`run_once=True`）执行完成后自动禁用，用户再次启用时，`_sequence_started` 仍为 `True`，导致任务跳过 trigger 检测阶段直接进入步骤执行。游戏画面已无黑客小游戏，`_read_target_host` 返回空列表，输出"目标识别失败"，循环 5 次后返回 `False`，`run_once` 机制再次禁用任务，用户无法再次启动
+2. `_disable_and_stop_in_config()` 在工作线程内部调用 `stop()`，`stop()` 执行 `self._thread.join(timeout=3)`，当前线程试图等待自己结束，触发 `RuntimeError: cannot join current thread`
+3. 电压连线配对后等待间隔 3 秒，用户反馈过长，要求缩短为 2.5 秒
+
+### 行为差异
+
+| 场景 | 修改前 | 修改后 |
+|------|--------|--------|
+| 连接主机重新启用后 | `_sequence_started=True` 残留，跳过 trigger 检测，直接进入步骤执行，输出"目标识别失败"后自动禁用 | `_sequence_started=False`，正常进入 trigger 等待阶段，静静扫描直到检测到黑客图标 |
+| `run_once` 任务执行完成后 | `_sequence_started` 保持 `True` | `_sequence_started` 重置为 `False` |
+| `_disable_and_stop_in_config` 调用路径 | 调用 `stop()` → `join` 当前线程 → `RuntimeError` | 直接设置标志位和状态，不 `join`，让 `_run` 的 `while` 循环自然退出 |
+| 电压连线配对间隔 | 3.0 秒 | 2.5 秒 |
+
+### 系统影响
+- `_reset_state()` 提取为共用方法，`stop()` 和 `_disable_and_stop_in_config()` 均调用，确保状态重置逻辑一致
+- `voltlab` 同为 `run_once=True` 的 hack 任务，TaskRunner 修复后一并解决相同隐患
+- 其他循环任务（`bunker_fast_track_research`、`close_game_at_results`）在手动停用后再启用时，`_sequence_started` 也会被正确重置
+
+### 关键问题
+- `_disable_and_stop_in_config()` 与 `stop()` 的语义差异：`stop()` 用于外部调用（主线程），需要 `join` 等待线程结束；`_disable_and_stop_in_config()` 用于工作线程内部，只需设置标志让循环自然退出，不可 `join`
+- 状态重置必须在两个路径上都执行，否则重新启用任务时行为异常

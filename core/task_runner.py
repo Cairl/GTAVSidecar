@@ -76,12 +76,16 @@ class TaskRunner:
         if self._task is None:
             if not self._load_task():
                 return
-        self._sequence_started = False
-        self._timeout_count = 0
         self._running = True
         self._status = "running"
         self._thread = threading.Thread(target=self._run, daemon=True)
         self._thread.start()
+
+    def _reset_state(self) -> None:
+        self._sequence_started = False
+        self._current_step = 0
+        self._timeout_count = 0
+        self._last_confidence = 0.0
 
     def stop(self) -> None:
         self._running = False
@@ -89,6 +93,7 @@ class TaskRunner:
         if self._thread and self._thread.is_alive():
             self._thread.join(timeout=3)
         self._thread = None
+        self._reset_state()
 
     def _disable_and_stop_in_config(self):
         cfg = _cfg.load_config()
@@ -98,6 +103,7 @@ class TaskRunner:
             _cfg.save_config(cfg)
         self._running = False
         self._status = "stopped"
+        self._reset_state()
 
     def reload(self, task_cfg: dict, global_cfg: dict) -> None:
         was_running = self._running
