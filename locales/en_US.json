@@ -35,7 +35,7 @@
     "step.confirm.bunker_fast_track_research": "Confirm Fast-track Research",
     "step.complete.bunker_fast_track_research": "Complete Fast-track Research",
 
-    "step.trigger.close_game_at_results": "Mission End",
+    "step.trigger.close_game_at_results": "Mission End Detected",
     "step.exit.close_game_at_results": "Quitting game",
 
     "step.trigger.hack_solver_voltlab": "Game Start",

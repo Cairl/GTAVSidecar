@@ -20,6 +20,9 @@ class _LogBuffer:
         self._log_dir: str | None = None
         self._log_path: str | None = None
         self._max_log_files = 5
+        self._pending_lines: list[str] = []
+        self._flush_interval = 1.0
+        self._last_flush = 0.0
 
     def set_log_dir(self, log_dir: str) -> None:
         self._log_dir = log_dir
@@ -47,6 +50,17 @@ class _LogBuffer:
         except OSError:
             pass
 
+    def _flush(self) -> None:
+        if not self._pending_lines or self._log_path is None:
+            return
+        try:
+            with open(self._log_path, "a", encoding="utf-8") as f:
+                f.write("".join(self._pending_lines))
+            self._pending_lines.clear()
+            self._last_flush = time.time()
+        except OSError:
+            pass
+
     def add(self, msg: str) -> int:
         ts = time.strftime("%H:%M:%S")
         line = f"\033[90m[{ts}]\033[0m {msg}"
@@ -59,12 +73,11 @@ class _LogBuffer:
 
         self._ensure_log_file()
         if self._log_path is not None:
-            try:
-                plain = _strip_ansi(f"[{ts}] {msg}")
-                with open(self._log_path, "a", encoding="utf-8") as f:
-                    f.write(plain + "\n")
-            except OSError:
-                pass
+            plain = _strip_ansi(f"[{ts}] {msg}")
+            self._pending_lines.append(plain + "\n")
+            now = time.time()
+            if now - self._last_flush >= self._flush_interval:
+                self._flush()
 
         return idx
 

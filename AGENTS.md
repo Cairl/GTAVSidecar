@@ -426,6 +426,34 @@ class Task(BaseTask):
 
 ---
 
+## 26w19b
+
+### 修改范围
+- `locales/zh_CN.json` — `step.trigger.close_game_at_results` 翻译键：`任务结束` → `检测到任务结束`
+- `locales/zh_TW.json` — `step.trigger.close_game_at_results` 翻译键：`任務結束` → `檢測到任務結束`
+- `locales/en_US.json` — `step.trigger.close_game_at_results` 翻译键：`Mission End` → `Mission End Detected`
+- `tasks/close_game_at_results/task.py` — 成功退出游戏回显包裹 `C_GREEN` / `C_RESET` 绿色 ANSI 颜色码
+
+### 原因与背景
+1. 任务结束退出游戏的 trigger 检测回显文本为"任务结束"，语义不够明确，用户希望强调是"检测到"任务结束画面才触发后续退出流程
+2. "已成功退出游戏"回显使用默认终端色，在日志流中不够醒目，用户要求改为绿色以突出成功状态
+
+### 行为差异
+
+| 场景 | 修改前 | 修改后 |
+|------|--------|--------|
+| trigger 检测回显 | `[任务结束退出游戏] 任务结束` | `[任务结束退出游戏] 检测到任务结束` |
+| 成功退出回显颜色 | 默认终端色 | 绿色（`C_GREEN`） |
+
+### 系统影响
+- 仅影响 `close_game_at_results` 任务的日志回显文本和颜色，无逻辑或配置变更
+- `C_GREEN` 已通过 `_INJECT_SYMBOLS` 注入到 task 模块全局符号表，直接使用无需额外 import
+
+### 关键问题
+- 翻译键需在三语言文件中同步更新，避免键名不同步导致回退到键名原文
+
+---
+
 ## 26w19a
 
 ### 修改范围
@@ -456,3 +484,39 @@ class Task(BaseTask):
 ### 关键问题
 - `_disable_and_stop_in_config()` 与 `stop()` 的语义差异：`stop()` 用于外部调用（主线程），需要 `join` 等待线程结束；`_disable_and_stop_in_config()` 用于工作线程内部，只需设置标志让循环自然退出，不可 `join`
 - 状态重置必须在两个路径上都执行，否则重新启用任务时行为异常
+
+---
+
+## 26w19c
+
+### 修改范围
+- `core/renderer.py` — `_truncate_visible()` 添加 `@lru_cache(maxsize=512)` 缓存装饰器
+- `main.py` — 主循环新增渲染跳过逻辑：无输入、无尺寸变化、无任务列表变化时每 5 帧渲染 1 次
+- `main.py` — 新增 `_last_task_keys`、`_last_task_lines`、`_last_term_w`、`_last_entries`、`_frame_counter` 状态缓存变量
+- `core/log_buffer.py` — 新增 `_pending_lines`、`_flush_interval`、`_last_flush` 批量写入机制；`add()` 改为追加到内存缓冲；新增 `_flush()` 方法批量写入文件
+
+### 原因与背景
+1. 用户反馈性能检测任务显示的 CPU 使用率会突然飙到 30% 后又归零，尽管没有消耗资源的任务在运行
+2. 主循环每帧固定 50fps（0.02s），即使没有任何变化也在持续重建菜单面板、截断日志行、写入磁盘，造成不必要的 CPU 开销
+3. `_truncate_visible()` 对每帧的每条日志逐字符扫描 Unicode 宽度，日志行数多时每帧遍历数千字符
+4. `log_buffer.add()` 每次调用都同步打开文件、写入一行、关闭文件，频繁日志输出时磁盘 I/O 成为瓶颈
+
+### 行为差异
+
+| 场景 | 修改前 | 修改后 |
+|------|--------|--------|
+| 日志行截断 | 每帧逐字符扫描，无缓存 | 相同内容和宽度直接命中缓存 |
+| 菜单面板重建 | 每帧强制重建 | 仅在有输入/尺寸变化/任务变化时重建，否则每 5 帧 1 次 |
+| 日志文件写入 | 每次 `add()` 同步写磁盘 | 缓冲到内存，每 1 秒批量 flush |
+| 静态状态 CPU | 持续 50fps 渲染循环 | 大部分时间跳过渲染，CPU 占用更平稳 |
+
+### 系统影响
+- `_truncate_visible` 的缓存使重复日志行的截断开销从 O(n) 字符扫描降为 O(1) 缓存查找
+- 主循环渲染频率从固定 50fps 变为动态：有交互时 50fps，静态时约 10fps
+- 日志批量写入减少文件系统调用频率，但异常退出时可能丢失最近 1 秒内未 flush 的日志
+- 所有使用 `log_buffer.add()` 的模块自动享受批量写入优化，无需改动
+
+### 关键问题
+- 缓存键为 `(s, max_width)` 元组，日志时间戳变化会导致缓存不命中，但同一帧内多条相同前缀的日志可共享缓存
+- 渲染跳过逻辑依赖 `_frame_counter % 5 == 0`，确保即使没有外部变化，日志刷新也不会延迟超过 0.1s
+- 批量写入的 `_flush_interval = 1.0` 秒是权衡：太短失去批量意义，太长增加丢失风险

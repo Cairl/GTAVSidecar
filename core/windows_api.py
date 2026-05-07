@@ -16,8 +16,7 @@ except Exception:
 
 INPUT_MOUSE = 0
 INPUT_KEYBOARD = 1
-MOUSEEVENTF_LEFTDOWN = 0x0002
-MOUSEEVENTF_LEFTUP = 0x0004
+MOUSEEVENTF_MIDDLEDOWN = 0x0020
 KEYEVENTF_KEYUP = 0x0002
 KEYEVENTF_SCANCODE = 0x0008
 KEYEVENTF_EXTENDEDKEY = 0x0001
@@ -266,7 +265,9 @@ def bring_to_foreground(hwnd: int) -> bool:
 
 
 def focus_game_window(hwnd: int) -> bool:
-    bring_to_foreground(hwnd)
+    already_fg = bring_to_foreground(hwnd)
+    if already_fg:
+        return True
     time.sleep(0.3)
     rect = _RECT()
     ctypes.windll.user32.GetWindowRect(hwnd, ctypes.byref(rect))
@@ -294,11 +295,7 @@ def click_at(screen_x: int, screen_y: int) -> None:
     time.sleep(0.1)
 
     ctypes.windll.user32.SendInput(
-        1, ctypes.byref(_make_mouse_input(MOUSEEVENTF_LEFTDOWN)), ctypes.sizeof(_INPUT)
-    )
-    time.sleep(0.08)
-    ctypes.windll.user32.SendInput(
-        1, ctypes.byref(_make_mouse_input(MOUSEEVENTF_LEFTUP)), ctypes.sizeof(_INPUT)
+        1, ctypes.byref(_make_mouse_input(MOUSEEVENTF_MIDDLEDOWN)), ctypes.sizeof(_INPUT)
     )
 
 

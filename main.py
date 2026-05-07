@@ -75,6 +75,12 @@ def main() -> None:
     game_status = "not_running"
     game_status_check_time = 0.0
 
+    _last_task_keys: list[str] = []
+    _last_task_lines: list[str] = []
+    _last_term_w = 0
+    _last_entries: list[str] = []
+    _frame_counter = 0
+
     try:
         while True:
             cfg = config.load_config()
@@ -135,36 +141,52 @@ def main() -> None:
             term_h = term_size.lines
             term_w = term_size.columns
 
-            task_lines = renderer.build_task_panel(
-                task_keys, runners, afk_running, show_perf_running, game_status
+            has_input = msvcrt.kbhit()
+            needs_render = (
+                has_input
+                or term_w != _last_term_w
+                or task_keys != _last_task_keys
+                or _frame_counter % 5 == 0
             )
-            task_panel_h = len(task_lines)
 
-            log_avail = term_h - task_panel_h - 1
-            entries = log_buffer._log_buffer.recent(log_avail) if log_avail > 0 else []
+            if needs_render:
+                task_lines = renderer.build_task_panel(
+                    task_keys, runners, afk_running, show_perf_running, game_status
+                )
+                task_panel_h = len(task_lines)
 
-            lines = task_lines[:]
-            if entries:
-                lines.append("")
-            for entry in entries:
-                lines.append(renderer._truncate_visible(entry, term_w))
+                log_avail = term_h - task_panel_h - 1
+                entries = log_buffer._log_buffer.recent(log_avail) if log_avail > 0 else []
 
-            out_buf: list[str] = []
-            for i, line in enumerate(lines[:term_h]):
-                if i < len(last_render_lines) and last_render_lines[i] == line:
-                    continue
-                out_buf.append(f"\033[{i + 1};1H\033[2K{line}")
+                lines = task_lines[:]
+                if entries:
+                    lines.append("")
+                for entry in entries:
+                    lines.append(renderer._truncate_visible(entry, term_w))
 
-            for i in range(len(lines), len(last_render_lines)):
-                if i < term_h:
-                    out_buf.append(f"\033[{i + 1};1H\033[2K")
+                out_buf: list[str] = []
+                for i, line in enumerate(lines[:term_h]):
+                    if i < len(last_render_lines) and last_render_lines[i] == line:
+                        continue
+                    out_buf.append(f"\033[{i + 1};1H\033[2K{line}")
 
-            if out_buf:
-                sys.stdout.write("".join(out_buf))
-            sys.stdout.flush()
-            last_render_lines = lines[:]
+                for i in range(len(lines), len(last_render_lines)):
+                    if i < term_h:
+                        out_buf.append(f"\033[{i + 1};1H\033[2K")
 
-            if msvcrt.kbhit():
+                if out_buf:
+                    sys.stdout.write("".join(out_buf))
+                sys.stdout.flush()
+                last_render_lines = lines[:]
+
+                _last_task_lines = task_lines
+                _last_term_w = term_w
+                _last_entries = entries
+
+            _last_task_keys = task_keys
+            _frame_counter += 1
+
+            if has_input:
                 key = msvcrt.getwch()
                 if key == "\x00" or key == "\xe0":
                     arrow = msvcrt.getwch()

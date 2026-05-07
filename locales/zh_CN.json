@@ -35,7 +35,7 @@
     "step.confirm.bunker_fast_track_research": "确认加速研究",
     "step.complete.bunker_fast_track_research": "完成加速研究",
 
-    "step.trigger.close_game_at_results": "任务结束",
+    "step.trigger.close_game_at_results": "检测到任务结束",
     "step.exit.close_game_at_results": "正在退出游戏",
 
     "step.trigger.hack_solver_voltlab": "游戏开始",

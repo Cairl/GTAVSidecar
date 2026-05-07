@@ -65,6 +65,7 @@ def _rpad_to_width(s: str, width: int) -> str:
     return " " * (width - visible_len) + s
 
 
+@lru_cache(maxsize=512)
 def _truncate_visible(s: str, max_width: int) -> str:
     visible = 0
     i = 0

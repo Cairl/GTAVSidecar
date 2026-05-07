@@ -22,7 +22,7 @@ class Task(BaseTask):
         success = kill_game_process(GAME_PROCESS_NAME)
         if success:
             _log_buffer.add(
-                f"[{display_name}] {translate('process_killed', confidence=f'{confidence:.1%}')}"
+                f"[{display_name}] {C_GREEN}{translate('process_killed', confidence=f'{confidence:.1%}')}{C_RESET}"
             )
         else:
             _log_buffer.add(
