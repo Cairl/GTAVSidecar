@@ -291,6 +291,10 @@ def _make_mouse_input(flags: int) -> _INPUT:
     return inp
 
 
+def move_cursor_to(screen_x: int, screen_y: int) -> None:
+    ctypes.windll.user32.SetCursorPos(screen_x, screen_y)
+
+
 def click_at(screen_x: int, screen_y: int) -> None:
     ctypes.windll.user32.SetCursorPos(screen_x, screen_y)
     time.sleep(0.1)

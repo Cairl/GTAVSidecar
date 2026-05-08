@@ -23,6 +23,7 @@ _SKIP_CONFIG_KEYS = frozenset({"lang", "scan_ms", "anti_afk"})
 
 _TASK_ORDER = [
     "create_invite_only",
+    "join_online",
     "close_game_at_results",
     "hack_solver_voltlab",
     "hack_solver_connect_host",

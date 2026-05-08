@@ -24,6 +24,7 @@
     "task.close_game_at_results": "任務結束退出遊戲",
     "task.anti_afk": "防止遊戲掛機檢測",
     "task.create_invite_only": "創建僅限邀請戰局",
+    "task.join_online": "自動進入在線模式",
     "task.show_performance": "顯示當前佔用效能",
 
     "task.hack_solver_voltlab": "電壓連線",
@@ -32,6 +33,7 @@
     "group.hack_solver": "駭客遊戲自動破譯",
 
     "step.trigger.bunker_fast_track_research": "點擊加速研究",
+    "step.trigger.join_online": "加入在線模式",
     "step.confirm.bunker_fast_track_research": "確認加速研究",
     "step.complete.bunker_fast_track_research": "完成加速研究",
 

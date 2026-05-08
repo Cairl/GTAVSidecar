@@ -24,6 +24,7 @@
     "task.close_game_at_results": "任务结束退出游戏",
     "task.anti_afk": "防止游戏挂机检测",
     "task.create_invite_only": "创建仅限邀请战局",
+    "task.join_online": "自动进入在线模式",
     "task.show_performance": "显示当前占用性能",
 
     "task.hack_solver_voltlab": "电压连线",
@@ -32,6 +33,7 @@
     "group.hack_solver": "黑客游戏自动破译",
 
     "step.trigger.bunker_fast_track_research": "点击加速研究",
+    "step.trigger.join_online": "加入在线模式",
     "step.confirm.bunker_fast_track_research": "确认加速研究",
     "step.complete.bunker_fast_track_research": "完成加速研究",
 

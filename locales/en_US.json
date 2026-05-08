@@ -24,6 +24,7 @@
     "task.close_game_at_results": "Close Game at Results",
     "task.anti_afk": "Anti-AFK Detection",
     "task.create_invite_only": "Create Invite Only Session",
+    "task.join_online": "Join Freemode",
     "task.show_performance": "Show Performance Usage",
 
     "task.hack_solver_voltlab": "VOLTlab",
@@ -32,6 +33,7 @@
     "group.hack_solver": "Hack Solver",
 
     "step.trigger.bunker_fast_track_research": "Click Fast-track Research",
+    "step.trigger.join_online": "Join Online",
     "step.confirm.bunker_fast_track_research": "Confirm Fast-track Research",
     "step.complete.bunker_fast_track_research": "Complete Fast-track Research",
 

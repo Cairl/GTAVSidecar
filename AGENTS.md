@@ -2,6 +2,40 @@
 
 GTA5 辅助后台工具集 — 通过视觉识别（4K RGBA 透明覆盖图匹配）检测游戏画面 UI 元素，自动执行鼠标点击、键盘操作或进程操作。
 
+## 26w19e
+
+### 修改范围
+- `tasks/join_online/task.py` — 新建任务，覆写 `execute_start_trigger`，PID 追踪 + 鼠标移动 + 回车键
+- `core/__init__.py` — `_INJECT_SYMBOLS` 新增 `move_cursor_to`、`_find_pid_by_name`
+- `core/windows_api.py` — 新增 `move_cursor_to()` 函数（仅移动光标不点击）
+- `core/config.py` — `_TASK_ORDER` 插入 `join_online`
+- `locales/zh_CN.json` — 新增 `task.join_online`、`step.trigger.join_online` 翻译键
+- `locales/zh_TW.json` — 同上
+- `locales/en_US.json` — 同上
+- `config.json` — 新增 `join_online` 配置项
+
+### 原因与背景
+游戏启动后需要手动点击"加入在线模式"按钮进入线上模式，用户希望自动化此操作。该按钮在每次游戏启动后只出现一次，因此同一游戏进程（PID）生命周期内只需执行一次，游戏重启后应自动重置。
+
+### 行为差异
+
+| 场景 | 修改前 | 修改后 |
+|------|--------|--------|
+| 游戏启动后检测到"加入在线模式"按钮 | 无自动操作 | 移动鼠标到按钮位置 + 按回车确认 |
+| 同一游戏进程再次检测到按钮 | — | 静默跳过，不重复操作 |
+| 游戏重启（新 PID）后检测到按钮 | — | 自动重置，再次执行 |
+| 鼠标点击方式 | — | 不使用鼠标点击，改为移动光标 + 回车键 |
+
+### 系统影响
+- `move_cursor_to` 新增为 `windows_api` 的公开函数，仅调用 `SetCursorPos` 不发送点击事件
+- `_find_pid_by_name` 从 `windows_api` 内部函数暴露到 `_INJECT_SYMBOLS`，task.py 可直接使用
+- 任务始终 enabled + 循环扫描，PID 变化自动重置，用户无需手动干预
+- `_TASK_ORDER` 中 `join_online` 位于 `create_invite_only` 之后
+
+### 关键问题
+- 初版使用 `_click_matcher`（鼠标中键点击）无法成功触发按钮，改为 `move_cursor_to` + `send_key("enter")` 方案
+- `_find_pid_by_name` 原为 `windows_api` 内部函数（下划线前缀），需加入 `_INJECT_SYMBOLS` 才能在 task.py 中通过符号注入使用
+
 ## 26w19d
 
 ### 修改范围
