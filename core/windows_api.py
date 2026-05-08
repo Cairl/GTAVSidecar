@@ -17,6 +17,7 @@ except Exception:
 INPUT_MOUSE = 0
 INPUT_KEYBOARD = 1
 MOUSEEVENTF_MIDDLEDOWN = 0x0020
+MOUSEEVENTF_MIDDLEUP = 0x0040
 KEYEVENTF_KEYUP = 0x0002
 KEYEVENTF_SCANCODE = 0x0008
 KEYEVENTF_EXTENDEDKEY = 0x0001
@@ -294,8 +295,12 @@ def click_at(screen_x: int, screen_y: int) -> None:
     ctypes.windll.user32.SetCursorPos(screen_x, screen_y)
     time.sleep(0.1)
 
+    inputs = (_INPUT * 2)(
+        _make_mouse_input(MOUSEEVENTF_MIDDLEDOWN),
+        _make_mouse_input(MOUSEEVENTF_MIDDLEUP),
+    )
     ctypes.windll.user32.SendInput(
-        1, ctypes.byref(_make_mouse_input(MOUSEEVENTF_MIDDLEDOWN)), ctypes.sizeof(_INPUT)
+        2, ctypes.byref(inputs), ctypes.sizeof(_INPUT)
     )
 
 
