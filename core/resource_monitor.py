@@ -5,6 +5,29 @@ import time
 from . import windows_api as _win
 
 
+def _get_cpu_count() -> int:
+    buf = (ctypes.wintypes.DWORD * 1)()
+    size = ctypes.wintypes.DWORD(ctypes.sizeof(buf))
+    ctypes.windll.kernel32.GetSystemInfo.argtypes = [ctypes.c_void_p]
+    class _SYSTEM_INFO(ctypes.Structure):
+        _fields_ = [
+            ("wProcessorArchitecture", ctypes.wintypes.WORD),
+            ("wReserved", ctypes.wintypes.WORD),
+            ("dwPageSize", ctypes.wintypes.DWORD),
+            ("lpMinimumApplicationAddress", ctypes.c_void_p),
+            ("lpMaximumApplicationAddress", ctypes.c_void_p),
+            ("dwActiveProcessorMask", ctypes.c_size_t),
+            ("dwNumberOfProcessors", ctypes.wintypes.DWORD),
+            ("dwProcessorType", ctypes.wintypes.DWORD),
+            ("dwAllocationGranularity", ctypes.wintypes.DWORD),
+            ("wProcessorLevel", ctypes.wintypes.WORD),
+            ("wProcessorRevision", ctypes.wintypes.WORD),
+        ]
+    si = _SYSTEM_INFO()
+    ctypes.windll.kernel32.GetSystemInfo(ctypes.byref(si))
+    return max(si.dwNumberOfProcessors, 1)
+
+
 class _FILETIME(ctypes.Structure):
     _fields_ = [
         ("dwLowDateTime", ctypes.wintypes.DWORD),
@@ -42,6 +65,8 @@ ctypes.windll.psapi.GetProcessMemoryInfo.argtypes = [
     ctypes.POINTER(_PROCESS_MEMORY_COUNTERS),
     ctypes.wintypes.DWORD,
 ]
+
+_CPU_COUNT: int = _get_cpu_count()
 
 _process_cpu_state: dict = {
     "last_time": 0.0,
@@ -82,7 +107,9 @@ def sample_process_resources() -> None:
             wall_delta = now - state["last_time"]
             if wall_delta >= 0.001:
                 process_delta = process_time - state["last_process_time"]
-                state["cpu_percent"] = min(process_delta / (wall_delta * 10_000_000) * 100, 100.0)
+                state["cpu_percent"] = min(
+                    process_delta / (wall_delta * 10_000_000) * 100 / _CPU_COUNT, 100.0
+                )
             state["last_time"] = now
             state["last_process_time"] = process_time
 

@@ -2,7 +2,33 @@
 
 GTA5 辅助后台工具集 — 通过视觉识别（4K RGBA 透明覆盖图匹配）检测游戏画面 UI 元素，自动执行鼠标点击、键盘操作或进程操作。
 
-## 26w19f
+## 26w19e
+
+### 修改范围
+- `core/resource_monitor.py` — 新增 `_get_cpu_count()` 函数，通过 `GetSystemInfo` 获取逻辑处理器数量；`_CPU_COUNT` 常量初始化；`sample_process_resources()` 计算 CPU 百分比时除以 `_CPU_COUNT`
+
+### 原因与背景
+`GetProcessTimes` 返回的 CPU 时间是进程在所有逻辑核心上消耗的时间总和。原公式 `process_delta / (wall_delta * 10_000_000) * 100` 未除以 CPU 核心数，导致多核 CPU 上显示值被放大（如 16 核 32 线程系统上，满负荷进程显示约 3200%，被 `min(..., 100.0)` 截断前约为实际值的 32 倍）。用户反馈程序内显示 34% 而任务管理器仅 2.6%，差异巨大。
+
+### 行为差异
+
+| 场景 | 修改前 | 修改后 |
+|------|--------|--------|
+| CPU 占用计算 | 未除以核心数，多核系统显示值被放大 | 除以逻辑处理器数，与任务管理器定义一致 |
+| 16C32T 满负荷显示 | ~100%（截断前 3200%） | ~3.1% |
+| 与任务管理器一致性 | 差异巨大（如 34% vs 2.6%） | 基本一致 |
+
+### 系统影响
+- 仅影响 `resource_monitor.py` 的 CPU 百分比计算，内存采样和游戏状态检测无变化
+- `_get_cpu_count()` 在模块加载时执行一次，运行时零额外开销
+- `get_cpu_percent()` 返回值范围不变（0.0~100.0），但语义从"单核相对占用"变为"整机相对占用"
+
+### 关键问题
+- `GetSystemInfo` 的 `_SYSTEM_INFO` 结构体需完整定义前 11 个字段才能正确定位 `dwNumberOfProcessors`
+- 使用 `max(si.dwNumberOfProcessors, 1)` 防止极端情况返回 0 导致除零错误
+- 该修复与 26w19c 中"CPU 突然飙高"现象属于不同问题：26w19c 是渲染循环开销，本次是计算公式错误
+
+## 26w19d
 
 ### 修改范围
 - `core/game_lifecycle.py` — 新建模块，GameLifecycleManager 统一游戏进程生命周期管理
@@ -44,7 +70,7 @@ GTA5 辅助后台工具集 — 通过视觉识别（4K RGBA 透明覆盖图匹�
 - TaskRegistry 的 `_load_from_task_py` 复用现有 `_load_task_module` 和符号注入机制，保持向后兼容
 - 翻译覆盖采用运行时合并策略，不写回 locale 文件，避免污染版本控制
 
-## 26w19e
+## 26w19c
 
 ### 修改范围
 - `tasks/join_online/task.py` — 新建任务，覆写 `execute_start_trigger`，PID 追踪 + 鼠标移动 + 回车键
@@ -78,7 +104,7 @@ GTA5 辅助后台工具集 — 通过视觉识别（4K RGBA 透明覆盖图匹�
 - 初版使用 `_click_matcher`（鼠标中键点击）无法成功触发按钮，改为 `move_cursor_to` + `send_key("enter")` 方案
 - `_find_pid_by_name` 原为 `windows_api` 内部函数（下划线前缀），需加入 `_INJECT_SYMBOLS` 才能在 task.py 中通过符号注入使用
 
-## 26w19d
+## 26w19b
 
 ### 修改范围
 - `core/windows_api.py` — `click_at()` 函数追加 `MOUSEEVENTF_MIDDLEUP` 弹起事件；新增 `MOUSEEVENTF_MIDDLEUP = 0x0040` 常量

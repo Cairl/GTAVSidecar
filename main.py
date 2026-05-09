@@ -4,6 +4,7 @@ import time
 import shutil
 import msvcrt
 import signal
+import ctypes
 
 sys.dont_write_bytecode = True
 
@@ -58,6 +59,9 @@ def _stop_anti_afk():
 
 
 def main() -> None:
+    if os.name == "nt":
+        ctypes.windll.kernel32.SetConsoleTitleW("GTAVSidecar")
+
     cfg = config.load_config()
     config_lang = cfg.get("lang", "auto")
     game_lang = config.resolve_game_language(config_lang)
