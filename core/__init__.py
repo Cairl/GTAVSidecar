@@ -32,7 +32,7 @@ _INJECT_SYMBOLS = {
     "_find_pid_by_name": windows_api._find_pid_by_name,
     "translate": i18n.translate,
     "load_config": config.load_config,
-    "_log_buffer": log_buffer._log_buffer,
+    "_log_buffer": log_buffer,
     "resolve_game_language": config.resolve_game_language,
     "GAME_PROCESS_NAME": windows_api.GAME_PROCESS_NAME,
     "BASE_DIR": config.BASE_DIR,
@@ -43,7 +43,7 @@ _INJECT_SYMBOLS = {
     "C_GRAY": renderer.C_GRAY,
     "C_BORDER": renderer.C_BORDER,
     "C_HIGHLIGHT": renderer.C_HIGHLIGHT,
-    "C_BLUE": "\033[38;2;137;180;250m",
+    "C_BLUE": renderer.C_BLUE,
 }
 
 

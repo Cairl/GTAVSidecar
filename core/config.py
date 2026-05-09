@@ -19,7 +19,7 @@ _STEAM_LANG_MAP = {
 _GTA5_APPID = "3240220"
 _detected_lang_cache: str | None = None
 
-_SKIP_CONFIG_KEYS = frozenset({"lang", "scan_ms", "anti_afk"})
+_SKIP_CONFIG_KEYS = frozenset({"lang", "scan_ms"})
 
 _INJECT_SYMBOLS = {}
 
@@ -29,15 +29,19 @@ def set_inject_symbols(symbols: dict) -> None:
     _INJECT_SYMBOLS.update(symbols)
 
 
-def _is_task_group(value):
-    if not isinstance(value, dict) or not value:
-        return False
-    return all(isinstance(v, dict) for v in value.values())
+_registry: "TaskRegistry | None" = None
+
+
+def _get_registry() -> "TaskRegistry":
+    global _registry
+    if _registry is None:
+        from . import task_registry as _tr
+        _registry = _tr.TaskRegistry(BASE_DIR)
+    return _registry
 
 
 def _flatten_task_configs(config):
-    from . import task_registry
-    registry = task_registry.TaskRegistry(BASE_DIR)
+    registry = _get_registry()
     result = {}
 
     for name in registry.get_task_names():
@@ -47,7 +51,7 @@ def _flatten_task_configs(config):
 
         if info.group:
             group_cfg = config.get(info.group, {})
-            sub_name = name[len(info.group) + 1:] if name.startswith(f"{info.group}_") else name
+            sub_name = registry.extract_sub_name(name, info.group)
             result[name] = group_cfg.get(sub_name, {})
         else:
             result[name] = config.get(name, {})
@@ -56,20 +60,19 @@ def _flatten_task_configs(config):
 
 
 def _get_task_config(config, task_name):
-    from . import task_registry
-    registry = task_registry.TaskRegistry(BASE_DIR)
+    registry = _get_registry()
     info = registry.get_task_info(task_name)
     if info is None:
         return None
 
     if info.group:
         group_cfg = config.get(info.group, {})
-        sub_name = task_name[len(info.group) + 1:] if task_name.startswith(f"{info.group}_") else task_name
+        sub_name = registry.extract_sub_name(task_name, info.group)
         sub_value = group_cfg.get(sub_name)
         return sub_value if isinstance(sub_value, dict) else {}
     else:
         value = config.get(task_name)
-        return value if isinstance(value, dict) and not _is_task_group(value) else {}
+        return value if isinstance(value, dict) and not registry.is_task_group(value) else {}
 
 
 def _set_task_enabled(config, task_name, enabled):
@@ -91,14 +94,6 @@ def _load_task_module(task_name: str):
     return mod
 
 
-def _migrate_config(config: dict) -> dict:
-    if "hack_solver" in config and isinstance(config["hack_solver"], dict):
-        hs = config["hack_solver"]
-        if "ip_crack" in hs:
-            hs["connect_host"] = hs.pop("ip_crack")
-    return config
-
-
 def load_config() -> dict:
     try:
         if not os.path.exists(CONFIG_FILE):
@@ -108,7 +103,7 @@ def load_config() -> dict:
         mtime = os.path.getmtime(CONFIG_FILE)
         if mtime > _config_cache["mtime"]:
             with open(CONFIG_FILE, "r", encoding="utf-8") as f:
-                _config_cache["data"] = _migrate_config(json.load(f))
+                _config_cache["data"] = json.load(f)
             _config_cache["mtime"] = mtime
     except Exception:
         pass
@@ -126,9 +121,7 @@ def save_config(config: dict) -> None:
 
 
 def _build_default_config() -> dict:
-    from . import task_registry
-    registry = task_registry.TaskRegistry(BASE_DIR)
-    return registry.build_config()
+    return _get_registry().build_config()
 
 
 def detect_game_language() -> str:

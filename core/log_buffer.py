@@ -102,3 +102,19 @@ class _LogBuffer:
 
 
 _log_buffer = _LogBuffer()
+
+
+def add(msg: str) -> int:
+    return _log_buffer.add(msg)
+
+
+def replace_at(abs_index: int, msg: str) -> None:
+    _log_buffer.replace_at(abs_index, msg)
+
+
+def recent(n: int) -> list[str]:
+    return _log_buffer.recent(n)
+
+
+def set_log_dir(log_dir: str) -> None:
+    _log_buffer.set_log_dir(log_dir)

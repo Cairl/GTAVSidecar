@@ -5,24 +5,23 @@ import time
 from . import windows_api as _win
 
 
+class _SYSTEM_INFO(ctypes.Structure):
+    _fields_ = [
+        ("wProcessorArchitecture", ctypes.wintypes.WORD),
+        ("wReserved", ctypes.wintypes.WORD),
+        ("dwPageSize", ctypes.wintypes.DWORD),
+        ("lpMinimumApplicationAddress", ctypes.c_void_p),
+        ("lpMaximumApplicationAddress", ctypes.c_void_p),
+        ("dwActiveProcessorMask", ctypes.c_size_t),
+        ("dwNumberOfProcessors", ctypes.wintypes.DWORD),
+        ("dwProcessorType", ctypes.wintypes.DWORD),
+        ("dwAllocationGranularity", ctypes.wintypes.DWORD),
+        ("wProcessorLevel", ctypes.wintypes.WORD),
+        ("wProcessorRevision", ctypes.wintypes.WORD),
+    ]
+
+
 def _get_cpu_count() -> int:
-    buf = (ctypes.wintypes.DWORD * 1)()
-    size = ctypes.wintypes.DWORD(ctypes.sizeof(buf))
-    ctypes.windll.kernel32.GetSystemInfo.argtypes = [ctypes.c_void_p]
-    class _SYSTEM_INFO(ctypes.Structure):
-        _fields_ = [
-            ("wProcessorArchitecture", ctypes.wintypes.WORD),
-            ("wReserved", ctypes.wintypes.WORD),
-            ("dwPageSize", ctypes.wintypes.DWORD),
-            ("lpMinimumApplicationAddress", ctypes.c_void_p),
-            ("lpMaximumApplicationAddress", ctypes.c_void_p),
-            ("dwActiveProcessorMask", ctypes.c_size_t),
-            ("dwNumberOfProcessors", ctypes.wintypes.DWORD),
-            ("dwProcessorType", ctypes.wintypes.DWORD),
-            ("dwAllocationGranularity", ctypes.wintypes.DWORD),
-            ("wProcessorLevel", ctypes.wintypes.WORD),
-            ("wProcessorRevision", ctypes.wintypes.WORD),
-        ]
     si = _SYSTEM_INFO()
     ctypes.windll.kernel32.GetSystemInfo(ctypes.byref(si))
     return max(si.dwNumberOfProcessors, 1)
@@ -132,7 +131,14 @@ def get_mem_mb() -> float:
     return _process_cpu_state["mem_mb"]
 
 
-def get_game_status() -> str:
+def get_game_status(lifecycle=None) -> str:
+    if lifecycle is not None:
+        state = lifecycle.state
+        if state == "running":
+            return "connected"
+        elif state == "detecting":
+            return "no_window"
+        return "not_running"
     pid = _win._find_pid_by_name(_win.GAME_PROCESS_NAME)
     if pid is None:
         return "not_running"

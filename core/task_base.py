@@ -8,6 +8,7 @@ from . import windows_api as _win
 from . import config as _cfg
 from . import i18n as _i18n
 from . import log_buffer as _log_mod
+from . import renderer as _renderer
 
 
 class OverlayMatcher:
@@ -136,6 +137,7 @@ class BaseTask:
     step_timeout_ms: int = 30000
     run_once: bool = False
     default_config: dict = {}
+    always_active: bool = False
 
     def __init__(self, task_name: str, task_cfg: dict, global_cfg: dict):
         self._task_name = task_name
@@ -173,9 +175,9 @@ class BaseTask:
         try:
             return OverlayMatcher(path, alpha_threshold=alpha_threshold)
         except (FileNotFoundError, ValueError) as e:
-            _log_mod._log_buffer.add(
+            _log_mod.add(
                 f"[{_i18n.translate(f'task.{self._task_name}')}] "
-                f"\033[38;2;243;139;168m{_i18n.translate('overlay_load_failed', overlay=overlay, error=e)}\033[0m"
+                f"{_renderer.C_RED}{_i18n.translate('overlay_load_failed', overlay=overlay, error=e)}{_renderer.C_RESET}"
             )
             return None
 
@@ -204,10 +206,10 @@ class BaseTask:
             return True
 
         if not start_trigger_cfg or steps is None:
-            _log_mod._log_buffer.add(
+            _log_mod.add(
                 f"[{_i18n.translate(f'task.{self._task_name}')}] "
-                f"\033[38;2;243;139;168m"
-                f"{_i18n.translate('overlay_load_failed', overlay='task.py', error='missing start_trigger or steps')}\033[0m"
+                f"{_renderer.C_RED}"
+                f"{_i18n.translate('overlay_load_failed', overlay='task.py', error='missing start_trigger or steps')}{_renderer.C_RESET}"
             )
             return False
 
@@ -269,12 +271,12 @@ class BaseTask:
             step_display = self._start_trigger_name
         if self._start_trigger_click:
             self._click_matcher(hwnd, self._start_trigger_matcher, scan_center)
-            _log_mod._log_buffer.add(
-                f"[{display_name}] {_i18n.translate('start_trigger_detected', name=f'\033[38;2;249;226;175m{step_display}\033[0m', confidence=f'{confidence:.1%}')}"
+            _log_mod.add(
+                f"[{display_name}] {_i18n.translate('start_trigger_detected', name=f'{_renderer.C_YELLOW}{step_display}{_renderer.C_RESET}', confidence=f'{confidence:.1%}')}"
             )
         else:
-            _log_mod._log_buffer.add(
-                f"[{display_name}] {_i18n.translate('detected', name=f'\033[38;2;249;226;175m{step_display}\033[0m')}"
+            _log_mod.add(
+                f"[{display_name}] {_i18n.translate('detected', name=f'{_renderer.C_YELLOW}{step_display}{_renderer.C_RESET}')}"
             )
 
     def match_step(self, step_index, image, offset, threshold):
@@ -303,17 +305,17 @@ class BaseTask:
             killed = _win.kill_game_process(_win.GAME_PROCESS_NAME)
             if killed:
                 msg = _i18n.translate('process_killed')
-                _log_mod._log_buffer.add(f"[{display_name}] {_color_step(msg)} ({confidence:.1%})")
+                _log_mod.add(f"[{display_name}] {_color_step(msg)} ({confidence:.1%})")
             else:
-                _log_mod._log_buffer.add(
-                    f"[{display_name}] \033[38;2;243;139;168m{_i18n.translate('process_kill_failed')}\033[0m"
+                _log_mod.add(
+                    f"[{display_name}] {_renderer.C_RED}{_i18n.translate('process_kill_failed')}{_renderer.C_RESET}"
                 )
             return True
 
         matcher = self._matchers[step_index]
         self._click_matcher(hwnd, matcher, scan_center)
         colored_step = _color_step(step_display)
-        _log_mod._log_buffer.add(
+        _log_mod.add(
             f"[{display_name}] {_i18n.translate('click_success', name=colored_step, confidence=f'{confidence:.1%}')}"
         )
         return True
@@ -370,8 +372,8 @@ class BaseTask:
         if done_msg == done_key:
             done_msg = _i18n.translate("sequence_done")
 
-        _log_mod._log_buffer.add(
-            f"[{display_name}] \033[38;2;249;226;175m{start_msg}\033[0m"
+        _log_mod.add(
+            f"[{display_name}] {_renderer.C_YELLOW}{start_msg}{_renderer.C_RESET}"
         )
         _win.focus_game_window(hwnd)
         for step in self._key_steps:
@@ -380,13 +382,10 @@ class BaseTask:
             key = step["key"]
             for _ in range(repeat):
                 _win.send_key(key)
-        _log_mod._log_buffer.add(
-            f"[{display_name}] \033[38;2;166;227;161m{done_msg}\033[0m"
+        _log_mod.add(
+            f"[{display_name}] {_renderer.C_GREEN}{done_msg}{_renderer.C_RESET}"
         )
 
 
 def _color_step(text: str) -> str:
-    if "|" in text:
-        action, detail = text.split("|", 1)
-        return f"{action}\033[38;2;249;226;175m{detail}\033[0m"
-    return f"\033[38;2;249;226;175m{text}\033[0m"
+    return f"{_renderer.C_YELLOW}{text}{_renderer.C_RESET}"

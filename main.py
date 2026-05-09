@@ -22,47 +22,13 @@ setup()
 
 BASE_DIR = config.BASE_DIR
 
-_anti_afk_task = None
-
-
-def _load_anti_afk_module():
-    mod = config._load_task_module("anti_afk")
-    if mod is None:
-        return None
-    task_cls = getattr(mod, "Task", None)
-    if task_cls is None:
-        return None
-    cfg = config.load_config()
-    afk_cfg = cfg.get("anti_afk", {})
-    task = task_cls("anti_afk", afk_cfg, cfg)
-    if not task.load():
-        return None
-    return task
-
-
-def _start_anti_afk():
-    global _anti_afk_task
-    if _anti_afk_task and _anti_afk_task.is_running:
-        return
-    if _anti_afk_task is None:
-        _anti_afk_task = _load_anti_afk_module()
-        if _anti_afk_task is None:
-            return
-    _anti_afk_task.start()
-
-
-def _stop_anti_afk():
-    global _anti_afk_task
-    if _anti_afk_task:
-        _anti_afk_task.stop()
-
 
 def main() -> None:
     cfg = config.load_config()
     config_lang = cfg.get("lang", "auto")
     game_lang = config.resolve_game_language(config_lang)
     i18n.i18n_init(game_lang, BASE_DIR)
-    log_buffer._log_buffer.set_log_dir(os.path.join(BASE_DIR, "logs"))
+    log_buffer.set_log_dir(os.path.join(BASE_DIR, "logs"))
 
     registry = task_registry.TaskRegistry(BASE_DIR)
     overrides = registry.apply_locale_overrides(game_lang, {})
@@ -81,12 +47,12 @@ def main() -> None:
 
     def _on_lifecycle_state_change(state: str, hwnd: int | None) -> None:
         if state == game_lifecycle.GameLifecycleManager.STATE_RUNNING:
-            log_buffer._log_buffer.add(
-                f"\033[38;2;166;227;161m{i18n.translate('lifecycle_game_started')}\033[0m"
+            log_buffer.add(
+                f"{renderer.C_GREEN}{i18n.translate('lifecycle_game_started')}{renderer.C_RESET}"
             )
         elif state == game_lifecycle.GameLifecycleManager.STATE_NOT_RUNNING:
-            log_buffer._log_buffer.add(
-                f"\033[90m{i18n.translate('lifecycle_game_exited')}\033[0m"
+            log_buffer.add(
+                f"{renderer.C_GRAY}{i18n.translate('lifecycle_game_exited')}{renderer.C_RESET}"
             )
 
     lifecycle.add_listener(_on_lifecycle_state_change)
@@ -116,14 +82,6 @@ def main() -> None:
 
             task_cfgs = config._flatten_task_configs(cfg)
 
-            afk_cfg = cfg.get("anti_afk", {})
-            afk_enabled = afk_cfg.get("enabled", False)
-            afk_running = _anti_afk_task is not None and _anti_afk_task.is_running
-            if afk_enabled and not afk_running:
-                _start_anti_afk()
-            elif not afk_enabled and afk_running:
-                _stop_anti_afk()
-
             for key in list(runners.keys()):
                 if key not in task_cfgs:
                     runners[key].stop()
@@ -148,7 +106,7 @@ def main() -> None:
                         runner._task_cfg = task_cfg
 
             registry_names = registry.get_task_names()
-            task_keys = [k for k in registry_names if k in task_cfgs] + ["anti_afk"]
+            task_keys = [k for k in registry_names if k in task_cfgs]
 
             show_perf_running = False
             show_perf_runner = runners.get("show_performance")
@@ -159,7 +117,7 @@ def main() -> None:
             if show_perf_running:
                 resource_monitor.sample_process_resources()
             if now - game_status_check_time > 3.0:
-                game_status = resource_monitor.get_game_status()
+                game_status = resource_monitor.get_game_status(lifecycle)
                 game_status_check_time = now
 
             term_size = shutil.get_terminal_size()
@@ -176,12 +134,12 @@ def main() -> None:
 
             if needs_render:
                 task_lines = renderer.build_task_panel(
-                    task_keys, runners, afk_running, show_perf_running, game_status
+                    task_keys, runners, False, show_perf_running, game_status
                 )
                 task_panel_h = len(task_lines)
 
                 log_avail = term_h - task_panel_h - 1
-                entries = log_buffer._log_buffer.recent(log_avail) if log_avail > 0 else []
+                entries = log_buffer.recent(log_avail) if log_avail > 0 else []
 
                 lines = task_lines[:]
                 if entries:
@@ -230,30 +188,19 @@ def main() -> None:
                 elif key == "\r":
                     if task_keys and 0 <= renderer.get_selected_index() < len(task_keys):
                         task_key = task_keys[renderer.get_selected_index()]
-                        if task_key == "anti_afk":
-                            if _anti_afk_task and _anti_afk_task.is_running:
-                                _stop_anti_afk()
+                        runner = runners.get(task_key)
+                        if runner:
+                            if runner.is_running:
+                                runner.stop()
                             else:
-                                _start_anti_afk()
-                            if "anti_afk" not in cfg:
-                                cfg["anti_afk"] = {}
-                            cfg["anti_afk"]["enabled"] = _anti_afk_task is not None and _anti_afk_task.is_running
+                                runner.start()
+                            config._set_task_enabled(cfg, task_key, runner.is_running)
                             config.save_config(cfg)
-                        else:
-                            runner = runners.get(task_key)
-                            if runner:
-                                if runner.is_running:
-                                    runner.stop()
-                                else:
-                                    runner.start()
-                                config._set_task_enabled(cfg, task_key, runner.is_running)
-                                config.save_config(cfg)
 
             time.sleep(0.02)
 
     finally:
         lifecycle.stop()
-        _stop_anti_afk()
         for runner in runners.values():
             runner.stop()
         sys.stdout.write("\033[r\033[m\033[?25h")

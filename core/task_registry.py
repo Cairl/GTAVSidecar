@@ -130,9 +130,6 @@ class TaskRegistry:
             default_cfg = {"enabled": False, "scan_ms": 500}
             default_cfg.update(info.default_config)
 
-            if name == "anti_afk":
-                default_cfg = {"enabled": False, "interval_min": 10, "key": "enter"}
-
             existing_task_cfg = self._get_existing_task_config(existing, name, info.group)
             if existing_task_cfg is not None:
                 merged = default_cfg.copy()
@@ -144,7 +141,7 @@ class TaskRegistry:
             if info.group:
                 if info.group not in config:
                     config[info.group] = {}
-                sub_name = name[len(info.group) + 1:] if name.startswith(f"{info.group}_") else name
+                sub_name = self.extract_sub_name(name, info.group)
                 config[info.group][sub_name] = task_cfg
             else:
                 config[name] = task_cfg
@@ -155,21 +152,25 @@ class TaskRegistry:
         if group:
             group_cfg = config.get(group)
             if isinstance(group_cfg, dict):
-                sub_name = task_name[len(group) + 1:] if task_name.startswith(f"{group}_") else task_name
+                sub_name = self.extract_sub_name(task_name, group)
                 sub_value = group_cfg.get(sub_name)
                 if isinstance(sub_value, dict):
                     return sub_value
         else:
             value = config.get(task_name)
-            if isinstance(value, dict) and not self._is_task_group(value):
+            if isinstance(value, dict) and not self.is_task_group(value):
                 return value
         return None
 
     @staticmethod
-    def _is_task_group(value):
+    def is_task_group(value):
         if not isinstance(value, dict) or not value:
             return False
         return all(isinstance(v, dict) for v in value.values())
+
+    @staticmethod
+    def extract_sub_name(task_name: str, group: str) -> str:
+        return task_name[len(group) + 1:] if task_name.startswith(f"{group}_") else task_name
 
     def apply_locale_overrides(self, lang: str, translations: dict) -> dict:
         result = translations.copy()

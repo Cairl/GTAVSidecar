@@ -7,6 +7,7 @@ from . import task_base as _task_base
 from . import i18n as _i18n
 from . import log_buffer as _log_mod
 from . import game_lifecycle
+from . import renderer as _renderer
 
 
 class TaskRunner:
@@ -30,19 +31,19 @@ class TaskRunner:
     def _load_task(self) -> bool:
         mod = _cfg._load_task_module(self._task_name)
         if mod is None:
-            _log_mod._log_buffer.add(
+            _log_mod.add(
                 f"[{_i18n.translate(f'task.{self._task_name}')}] "
-                f"\033[38;2;243;139;168m"
-                f"{_i18n.translate('overlay_load_failed', overlay='task.py', error='not found')}\033[0m"
+                f"{_renderer.C_RED}"
+                f"{_i18n.translate('overlay_load_failed', overlay='task.py', error='not found')}{_renderer.C_RESET}"
             )
             return False
 
         task_cls = getattr(mod, "Task", None)
         if task_cls is None:
-            _log_mod._log_buffer.add(
+            _log_mod.add(
                 f"[{_i18n.translate(f'task.{self._task_name}')}] "
-                f"\033[38;2;243;139;168m"
-                f"{_i18n.translate('overlay_load_failed', overlay='task.py', error='missing Task class')}\033[0m"
+                f"{_renderer.C_RED}"
+                f"{_i18n.translate('overlay_load_failed', overlay='task.py', error='missing Task class')}{_renderer.C_RESET}"
             )
             return False
 
@@ -113,10 +114,7 @@ class TaskRunner:
         self.stop()
         self._task_cfg = task_cfg
         self._global_cfg = global_cfg
-        self._last_confidence = 0.0
-        self._current_step = 0
-        self._sequence_started = False
-        self._timeout_count = 0
+        self._reset_state()
         if self._task:
             self._task.reload(task_cfg, global_cfg)
         if was_running:
@@ -146,8 +144,8 @@ class TaskRunner:
                         step_start = time.time()
                         self._sequence_started = False
                         idle_interval, active_interval, threshold, click_delay, step_timeout = self._task.read_timing()
-                        _log_mod._log_buffer.add(
-                            f"\033[38;2;249;226;175m[{display_name}] {_i18n.translate('config_reloaded')}\033[0m"
+                        _log_mod.add(
+                            f"{_renderer.C_YELLOW}[{display_name}] {_i18n.translate('config_reloaded')}{_renderer.C_RESET}"
                         )
                     else:
                         self._task._task_cfg = new_task_cfg
@@ -172,8 +170,8 @@ class TaskRunner:
 
                 if hwnd is None:
                     if self._task._is_key_sequence and not self._sequence_started:
-                        _log_mod._log_buffer.add(
-                            f"[{display_name}] \033[38;2;243;139;168m{_i18n.translate('game_window_not_found')}\033[0m"
+                        _log_mod.add(
+                            f"[{display_name}] {_renderer.C_RED}{_i18n.translate('game_window_not_found')}{_renderer.C_RESET}"
                         )
                         cfg = _cfg.load_config()
                         task_cfg = _cfg._get_task_config(cfg, self._task_name)
@@ -200,6 +198,11 @@ class TaskRunner:
                     _cfg.save_config(cfg)
                 self._running = False
                 self._status = "stopped"
+                continue
+
+            if self._task.always_active:
+                self._task.execute_step(0, hwnd, 1.0, None)
+                time.sleep(active_interval)
                 continue
 
             if not self._sequence_started and self._task.has_start_trigger:
@@ -261,15 +264,15 @@ class TaskRunner:
                 else:
                     self._timeout_count += 1
                     if self._timeout_count >= 3:
-                        _log_mod._log_buffer.add(
-                            f"[{display_name}] \033[38;2;243;139;168m{_i18n.translate('step_timeout_reset')}\033[0m"
+                        _log_mod.add(
+                            f"[{display_name}] {_renderer.C_RED}{_i18n.translate('step_timeout_reset')}{_renderer.C_RESET}"
                         )
                         self._sequence_started = False
                         self._timeout_count = 0
                         step_index = 0
                     else:
-                        _log_mod._log_buffer.add(
-                            f"[{display_name}] \033[38;2;249;226;175m{_i18n.translate('step_timeout')}\033[0m"
+                        _log_mod.add(
+                            f"[{display_name}] {_renderer.C_YELLOW}{_i18n.translate('step_timeout')}{_renderer.C_RESET}"
                         )
                         step_index = 0
                     step_start = time.time()
@@ -278,14 +281,14 @@ class TaskRunner:
                     self._timeout_count += 1
 
                     if self._timeout_count >= 3:
-                        _log_mod._log_buffer.add(
+                        _log_mod.add(
                             f"[{display_name}] {_i18n.translate('step_timeout_reset')}"
                         )
                         self._sequence_started = False
                         self._timeout_count = 0
                         step_index = 0
                     else:
-                        _log_mod._log_buffer.add(
+                        _log_mod.add(
                             f"[{display_name}] {_i18n.translate('step_timeout')}"
                         )
                         step_index = 0

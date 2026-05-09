@@ -18,6 +18,7 @@ C_GRAY = "\033[90m"
 C_RESET = "\033[0m"
 C_BORDER = "\033[38;2;88;91;112m"
 C_HIGHLIGHT = "\033[48;2;88;91;112m"
+C_BLUE = "\033[38;2;137;180;250m"
 
 _selected_task_index = 0
 
@@ -96,7 +97,7 @@ def build_task_panel(task_keys: list[str], runners: dict,
 
     group_last_child: dict[str, str] = {}
     for key in task_keys:
-        if key in ("anti_afk", "show_performance"):
+        if key == "show_performance":
             continue
         runner = runners.get(key)
         group = runner.group if runner else None
@@ -107,15 +108,6 @@ def build_task_panel(task_keys: list[str], runners: dict,
     rows: list[tuple[str, bool, bool]] = []
 
     for idx, key in enumerate(task_keys):
-        if key == "anti_afk":
-            display_name = _i18n.translate(f"task.{key}")
-            is_running = anti_afk_running
-            is_selected = idx == _selected_task_index
-            checkbox = "\U0001F5F9" if is_running else "\u2610"
-            prefix = f"{' ' * PAD}{checkbox}  "
-            rows.append((f"{prefix}{display_name}", is_selected, is_running))
-            continue
-
         if key == "show_performance":
             display_name = _i18n.translate(f"task.{key}")
             is_running = show_perf_running

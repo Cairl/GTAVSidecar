@@ -2,6 +2,58 @@
 
 GTA5 辅助后台工具集 — 通过视觉识别（4K RGBA 透明覆盖图匹配）检测游戏画面 UI 元素，自动执行鼠标点击、键盘操作或进程操作。
 
+## 26w19f
+
+### 修改范围
+- `core/renderer.py` — 新增 `C_BLUE` 颜色常量定义
+- `core/__init__.py` — `C_BLUE` 改为从 `renderer` 导入，`_log_buffer` 注入改为 `log_buffer` 模块而非内部实例
+- `core/task_registry.py` — `_is_task_group` 重命名为 `is_task_group`（公开静态方法），新增 `extract_sub_name` 静态方法
+- `core/config.py` — 删除本地 `_is_task_group` 副本和 `_migrate_config` 一次性迁移函数；`_flatten_task_configs`/`_get_task_config`/`_build_default_config` 改用 `_get_registry()` 缓存单例，`sub_name` 提取改用 `extract_sub_name`
+- `core/task_runner.py` — `reload()` 改用 `_reset_state()` 替代手动重置；所有硬编码 ANSI 颜色码替换为 `_renderer.C_RED`/`C_YELLOW`/`C_RESET`；`_log_mod._log_buffer.add()` 改为 `_log_mod.add()`
+- `core/task_base.py` — 新增 `from . import renderer as _renderer`；所有硬编码 ANSI 颜色码替换为 `_renderer` 常量；`_color_step` 移除已无消费者的 `|` 分割逻辑；`_log_mod._log_buffer.add()` 改为 `_log_mod.add()`
+- `core/resource_monitor.py` — `_SYSTEM_INFO` 结构体从 `_get_cpu_count()` 内部移至模块级别；`get_game_status()` 新增 `lifecycle` 参数，优先使用生命周期状态
+- `core/log_buffer.py` — 新增模块级 `add()`、`replace_at()`、`recent()`、`set_log_dir()` 代理函数
+- `main.py` — 硬编码 ANSI 颜色码替换为 `renderer` 常量；`log_buffer._log_buffer.xxx` 改为 `log_buffer.xxx` 模块级 API；`get_game_status()` 传入 `lifecycle` 参数
+
+### 原因与背景
+1. `C_BLUE` 在 `__init__.py` 内联定义而非放在颜色常量集中管理模块 `renderer.py`，违反单一来源原则
+2. `_is_task_group` 在 `config.py` 和 `task_registry.py` 重复实现，`sub_name` 提取逻辑重复 4 次，违反 DRY 原则
+3. `_flatten_task_configs`/`_get_task_config`/`_build_default_config` 每次调用都创建新 `TaskRegistry` 实例，重复扫描 tasks/ 目录
+4. `reload()` 手动重置 4 个状态变量，与 `_reset_state()` 逻辑重复且易遗漏
+5. `task_runner.py`、`task_base.py`、`main.py` 中 15+ 处硬编码 ANSI 颜色码（如 `\033[38;2;243;139;168m`），修改颜色需逐处查找替换
+6. `_SYSTEM_INFO` 定义在 `_get_cpu_count()` 函数内部，每次调用重新定义类，不符合 ctypes 结构体模块级定义惯例
+7. `_migrate_config` 是 `ip_crack` → `connect_host` 的一次性迁移代码，该迁移早已完成，属于遗留代码
+8. `build_config` 中 `anti_afk` 硬编码特殊处理，与 Task 类 `default_config` 机制重复
+9. `_color_step` 的 `|` 分割逻辑自 26w18g 后已无消费者，属于死代码
+10. `get_game_status()` 独立查询进程和窗口，与 `GameLifecycleManager` 逻辑重复
+11. `_log_buffer` 内部实例被 63 处直接访问（`_log_mod._log_buffer.add()`），违反封装原则
+
+### 行为差异
+
+| 场景 | 修改前 | 修改后 |
+|------|--------|--------|
+| 颜色常量来源 | `C_BLUE` 内联在 `__init__.py`，其他颜色硬编码在调用处 | 所有颜色常量集中定义在 `renderer.py`，其他模块通过导入引用 |
+| 任务组判断 | `config.py` 和 `task_registry.py` 各自实现 `_is_task_group` | 统一为 `TaskRegistry.is_task_group()` 公开静态方法 |
+| 子任务名提取 | 4 处独立实现 `name[len(group)+1:]` 逻辑 | 统一为 `TaskRegistry.extract_sub_name()` 静态方法 |
+| TaskRegistry 实例 | 每次调用 `_flatten_task_configs`/`_get_task_config` 创建新实例 | `_get_registry()` 懒加载缓存单例 |
+| `reload()` 状态重置 | 手动重置 4 个变量 | 调用 `_reset_state()` 共用方法 |
+| `build_config` 中 anti_afk | 硬编码覆盖默认配置 | 由 Task 类 `default_config` 自动合并 |
+| `_color_step` | 包含 `|` 分割两色渲染逻辑（无消费者） | 简化为直接着色 |
+| `get_game_status` | 始终独立查询进程+窗口 | 传入 `lifecycle` 时优先使用生命周期状态 |
+| 日志 API | `_log_mod._log_buffer.add()` 穿透访问内部实例 | `_log_mod.add()` 使用模块级代理函数 |
+| `_migrate_config` | 每次加载配置时执行迁移检查 | 已移除，配置文件已全部迁移完成 |
+
+### 系统影响
+- 所有修改均为内部重构，无外部行为变化
+- `_get_registry()` 缓存单例减少 tasks/ 目录重复扫描，配置读取性能提升
+- `log_buffer` 模块级 API 不影响 task 文件中的 `_log_buffer.add()`/`_log_buffer.replace_at()` 调用，因为注入符号从实例改为模块，模块上有同名方法
+- `get_game_status(lifecycle)` 向后兼容，不传 `lifecycle` 参数时行为与修改前一致
+
+### 关键问题
+- `log_buffer` 注入符号从 `_LogBuffer` 实例改为 `log_buffer` 模块，task 文件中 `_log_buffer.add()` 调用仍有效，因为模块新增了同名代理函数
+- `_get_registry()` 使用 `global _registry` + 延迟导入避免循环依赖，类型注解使用字符串形式
+- `task_registry.py` 中 `build_config` 的缩进错误（`config[info.group][sub_name]` 在 `if info.group:` 块外）已一并修复
+
 ## 26w19e
 
 ### 修改范围
