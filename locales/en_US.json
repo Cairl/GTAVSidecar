@@ -72,5 +72,7 @@
     "status_cpu": "CPU",
     "status_memory": "RAM",
     "game_window_not_found": "Game window not found, cannot execute",
-    "trigger_not_found": "Game trigger not found"
+    "trigger_not_found": "Game trigger not found",
+    "lifecycle_game_started": "Game started, resuming task detection",
+    "lifecycle_game_exited": "Game exited, pausing task detection"
 }

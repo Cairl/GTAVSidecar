@@ -2,6 +2,48 @@
 
 GTA5 辅助后台工具集 — 通过视觉识别（4K RGBA 透明覆盖图匹配）检测游戏画面 UI 元素，自动执行鼠标点击、键盘操作或进程操作。
 
+## 26w19f
+
+### 修改范围
+- `core/game_lifecycle.py` — 新建模块，GameLifecycleManager 统一游戏进程生命周期管理
+- `core/task_runner.py` — 构造函数新增 `lifecycle` 参数，`_run()` 接入 lifecycle 状态检测
+- `core/task_registry.py` — 新建模块，TaskRegistry 自动扫描注册任务元数据
+- `core/config.py` — 移除 `_TASK_ORDER`，`_build_default_config`、`_flatten_task_configs`、`_get_task_config` 改用 TaskRegistry
+- `core/i18n.py` — 新增 `apply_overrides()` 支持运行时翻译合并
+- `core/__init__.py` — `_INJECT_SYMBOLS` 新增 `GameLifecycleManager`、`TaskRegistry`、`TaskInfo`
+- `main.py` — 初始化 GameLifecycleManager 和 TaskRegistry，注册生命周期状态监听，使用 registry 排序
+- `locales/zh_CN.json` — 新增 `lifecycle_game_started`、`lifecycle_game_exited`
+- `locales/zh_TW.json` — 同上
+- `locales/en_US.json` — 同上
+
+### 原因与背景
+1. 游戏退出后，N 个启用任务各自每 2 秒独立查询进程+窗口，造成无意义的 CPU 消耗。需要统一监控游戏生命周期，游戏退出后暂停所有画面检测，仅保留低频进程轮询。
+2. 新增任务时必须修改 `_TASK_ORDER` 和三个 locale 文件，违背"任务自包含"设计初衷。需要自动发现任务、自动生成配置、自动加载翻译。
+
+### 行为差异
+
+| 场景 | 修改前 | 修改后 |
+|------|--------|--------|
+| 游戏未运行，N 个任务启用 | N 个 runner 各自每 2 秒查询进程+窗口 | GameLifecycleManager 每 5 秒查询 1 次进程；runner 阻塞等待唤醒 |
+| 游戏启动 | 各 runner 陆续检测到窗口 | lifecycle 统一检测，广播 RUNNING 事件，所有 runner 同时恢复 |
+| 游戏退出 | 各 runner 独立进入 paused，继续轮询 | lifecycle 广播 NOT_RUNNING 事件，runner 进入深度休眠 |
+| 状态变更日志 | 无 | 游戏启动/退出时自动输出彩色日志 |
+| 新增任务流程 | 改 `_TASK_ORDER` + 3 个 locale 文件 + config.py | 只需创建 `tasks/{name}/task.py`，自动发现注册 |
+| 任务排序 | 硬编码 `_TASK_ORDER` 列表 | `order` 字段自动排序（默认 999） |
+| 配置生成 | 手动遍历目录、加载模块、读取 default_config | `registry.build_config()` 一行完成 |
+| 翻译管理 | 集中式 locale 文件 | 支持 manifest.json 运行时覆盖 + 原有 locale 兜底 |
+
+### 系统影响
+- GameLifecycleManager 作为单例服务贯穿应用生命周期，后续阶段可直接消费其状态事件
+- TaskRegistry 启动时一次性扫描 tasks/ 目录（< 10ms），运行时零额外开销
+- 所有现有任务零改动兼容，无需 manifest.json
+- config.py 从 ~190 行简化至 ~130 行，消除硬编码列表
+
+### 关键问题
+- GameLifecycleManager 使用 threading.Event 实现 wait_for_state，确保 runner 线程安全阻塞等待
+- TaskRegistry 的 `_load_from_task_py` 复用现有 `_load_task_module` 和符号注入机制，保持向后兼容
+- 翻译覆盖采用运行时合并策略，不写回 locale 文件，避免污染版本控制
+
 ## 26w19e
 
 ### 修改范围

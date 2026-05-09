@@ -72,5 +72,7 @@
     "status_cpu": "CPU",
     "status_memory": "RAM",
     "game_window_not_found": "遊戲視窗未找到，無法執行",
-    "trigger_not_found": "尚未發現遊戲"
+    "trigger_not_found": "尚未發現遊戲",
+    "lifecycle_game_started": "遊戲已啟動，恢復任務檢測",
+    "lifecycle_game_exited": "遊戲已退出，暫停任務檢測"
 }

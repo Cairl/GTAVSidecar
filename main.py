@@ -15,6 +15,8 @@ from core import renderer
 from core import resource_monitor
 from core import task_runner
 from core import windows_api
+from core import game_lifecycle
+from core import task_registry
 
 setup()
 
@@ -62,12 +64,32 @@ def main() -> None:
     i18n.i18n_init(game_lang, BASE_DIR)
     log_buffer._log_buffer.set_log_dir(os.path.join(BASE_DIR, "logs"))
 
+    registry = task_registry.TaskRegistry(BASE_DIR)
+    overrides = registry.apply_locale_overrides(game_lang, {})
+    if overrides:
+        i18n.apply_overrides(overrides)
+
     signal.signal(signal.SIGINT, signal.SIG_IGN)
 
     if os.name == "nt":
         os.system("")
     sys.stdout.write("\033[2J\033[?25l")
     sys.stdout.flush()
+
+    lifecycle = game_lifecycle.GameLifecycleManager(windows_api.GAME_PROCESS_NAME)
+    lifecycle.start()
+
+    def _on_lifecycle_state_change(state: str, hwnd: int | None) -> None:
+        if state == game_lifecycle.GameLifecycleManager.STATE_RUNNING:
+            log_buffer._log_buffer.add(
+                f"\033[38;2;166;227;161m{i18n.translate('lifecycle_game_started')}\033[0m"
+            )
+        elif state == game_lifecycle.GameLifecycleManager.STATE_NOT_RUNNING:
+            log_buffer._log_buffer.add(
+                f"\033[90m{i18n.translate('lifecycle_game_exited')}\033[0m"
+            )
+
+    lifecycle.add_listener(_on_lifecycle_state_change)
 
     runners: dict[str, task_runner.TaskRunner] = {}
     last_render_lines: list[str] = []
@@ -87,6 +109,9 @@ def main() -> None:
             current_lang = config.resolve_game_language(cfg.get("lang", "auto"))
             if current_lang != last_lang:
                 i18n.i18n_init(current_lang, BASE_DIR)
+                overrides = registry.apply_locale_overrides(current_lang, {})
+                if overrides:
+                    i18n.apply_overrides(overrides)
                 last_lang = current_lang
 
             task_cfgs = config._flatten_task_configs(cfg)
@@ -106,7 +131,7 @@ def main() -> None:
 
             for key, task_cfg in task_cfgs.items():
                 if key not in runners:
-                    runner = task_runner.TaskRunner(key, task_cfg, cfg)
+                    runner = task_runner.TaskRunner(key, task_cfg, cfg, lifecycle=lifecycle)
                     runners[key] = runner
                     if task_cfg.get("enabled", False):
                         runner.start()
@@ -122,8 +147,8 @@ def main() -> None:
                     else:
                         runner._task_cfg = task_cfg
 
-            task_keys = list(task_cfgs.keys()) + ["anti_afk"]
-            task_keys = [k for k in config._TASK_ORDER if k in task_keys]
+            registry_names = registry.get_task_names()
+            task_keys = [k for k in registry_names if k in task_cfgs] + ["anti_afk"]
 
             show_perf_running = False
             show_perf_runner = runners.get("show_performance")
@@ -227,6 +252,7 @@ def main() -> None:
             time.sleep(0.02)
 
     finally:
+        lifecycle.stop()
         _stop_anti_afk()
         for runner in runners.values():
             runner.stop()

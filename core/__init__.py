@@ -8,8 +8,13 @@ from . import log_buffer
 from . import resource_monitor
 from . import renderer
 from . import task_runner
+from . import game_lifecycle
+from . import task_registry
 
 _INJECT_SYMBOLS = {
+    "GameLifecycleManager": game_lifecycle.GameLifecycleManager,
+    "TaskRegistry": task_registry.TaskRegistry,
+    "TaskInfo": task_registry.TaskInfo,
     "BaseTask": task_base.BaseTask,
     "OverlayMatcher": task_base.OverlayMatcher,
     "capture_window": windows_api.capture_window,

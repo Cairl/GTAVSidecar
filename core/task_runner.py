@@ -6,13 +6,16 @@ from . import config as _cfg
 from . import task_base as _task_base
 from . import i18n as _i18n
 from . import log_buffer as _log_mod
+from . import game_lifecycle
 
 
 class TaskRunner:
-    def __init__(self, task_name: str, task_cfg: dict, global_cfg: dict):
+    def __init__(self, task_name: str, task_cfg: dict, global_cfg: dict,
+                 lifecycle: game_lifecycle.GameLifecycleManager | None = None):
         self._task_name = task_name
         self._task_cfg = task_cfg
         self._global_cfg = global_cfg
+        self._lifecycle = lifecycle
         self._running = False
         self._thread: threading.Thread | None = None
         self._task: _task_base.BaseTask | None = None
@@ -151,28 +154,39 @@ class TaskRunner:
                         self._task_cfg = new_task_cfg
                 last_config_mtime = _cfg._config_cache["mtime"]
 
-            now = time.time()
-            if hwnd is None or now - hwnd_check_time > 3.0:
-                hwnd = _win.find_game_window(process_name)
-                hwnd_check_time = now
-
-            if hwnd is None:
-                if self._task._is_key_sequence and not self._sequence_started:
-                    _log_mod._log_buffer.add(
-                        f"[{display_name}] \033[38;2;243;139;168m{_i18n.translate('game_window_not_found')}\033[0m"
+            if self._lifecycle is not None:
+                if self._lifecycle.state != game_lifecycle.GameLifecycleManager.STATE_RUNNING:
+                    if self._status != "waiting_for_game":
+                        self._status = "waiting_for_game"
+                    self._lifecycle.wait_for_state(
+                        game_lifecycle.GameLifecycleManager.STATE_RUNNING,
+                        timeout=5.0
                     )
-                    cfg = _cfg.load_config()
-                    task_cfg = _cfg._get_task_config(cfg, self._task_name)
-                    if task_cfg:
-                        task_cfg["enabled"] = False
-                        _cfg.save_config(cfg)
-                    self._running = False
-                    self._status = "stopped"
                     continue
-                if self._status != "paused":
-                    self._status = "paused"
-                time.sleep(2)
-                continue
+                hwnd = self._lifecycle.hwnd
+            else:
+                now = time.time()
+                if hwnd is None or now - hwnd_check_time > 3.0:
+                    hwnd = _win.find_game_window(process_name)
+                    hwnd_check_time = now
+
+                if hwnd is None:
+                    if self._task._is_key_sequence and not self._sequence_started:
+                        _log_mod._log_buffer.add(
+                            f"[{display_name}] \033[38;2;243;139;168m{_i18n.translate('game_window_not_found')}\033[0m"
+                        )
+                        cfg = _cfg.load_config()
+                        task_cfg = _cfg._get_task_config(cfg, self._task_name)
+                        if task_cfg:
+                            task_cfg["enabled"] = False
+                            _cfg.save_config(cfg)
+                        self._running = False
+                        self._status = "stopped"
+                        continue
+                    if self._status != "paused":
+                        self._status = "paused"
+                    time.sleep(2)
+                    continue
 
             if self._status != "running":
                 self._status = "running"

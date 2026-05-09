@@ -22,6 +22,12 @@ def i18n_init(lang: str, base_dir: str) -> None:
         _translations = _fallback.copy()
 
 
+def apply_overrides(overrides: dict[str, str]) -> None:
+    """运行时合并翻译覆盖（来自 manifest）"""
+    global _translations
+    _translations.update(overrides)
+
+
 def translate(key: str, **kwargs) -> str:
     text = _translations.get(key) or _fallback.get(key, key)
     if kwargs:

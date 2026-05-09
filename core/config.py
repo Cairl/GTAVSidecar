@@ -21,17 +21,6 @@ _detected_lang_cache: str | None = None
 
 _SKIP_CONFIG_KEYS = frozenset({"lang", "scan_ms", "anti_afk"})
 
-_TASK_ORDER = [
-    "create_invite_only",
-    "join_online",
-    "close_game_at_results",
-    "hack_solver_voltlab",
-    "hack_solver_connect_host",
-    "show_performance",
-    "anti_afk",
-    "bunker_fast_track_research",
-]
-
 _INJECT_SYMBOLS = {}
 
 
@@ -47,54 +36,40 @@ def _is_task_group(value):
 
 
 def _flatten_task_configs(config):
+    from . import task_registry
+    registry = task_registry.TaskRegistry(BASE_DIR)
     result = {}
-    for key, value in config.items():
-        if key in _SKIP_CONFIG_KEYS:
-            continue
-        if not isinstance(value, dict):
-            continue
-        if _is_task_group(value):
-            for sub_key, sub_value in value.items():
-                result[f"{key}_{sub_key}"] = sub_value if isinstance(sub_value, dict) else {}
-        else:
-            result[key] = value
 
-    tasks_dir = os.path.join(BASE_DIR, "tasks")
-    if os.path.isdir(tasks_dir):
-        for name in os.listdir(tasks_dir):
-            if name == "anti_afk":
-                continue
-            if name not in result and os.path.isfile(os.path.join(tasks_dir, name, "task.py")):
-                mod = _load_task_module(name)
-                task_cfg = {"enabled": False, "scan_ms": 500}
-                if mod:
-                    task_cls = getattr(mod, "Task", None)
-                    if task_cls:
-                        defaults = getattr(task_cls, "default_config", {})
-                        task_cfg.update(defaults)
-                result[name] = task_cfg
+    for name in registry.get_task_names():
+        info = registry.get_task_info(name)
+        if info is None:
+            continue
+
+        if info.group:
+            group_cfg = config.get(info.group, {})
+            sub_name = name[len(info.group) + 1:] if name.startswith(f"{info.group}_") else name
+            result[name] = group_cfg.get(sub_name, {})
+        else:
+            result[name] = config.get(name, {})
 
     return result
 
 
 def _get_task_config(config, task_name):
-    for key, value in config.items():
-        if key in _SKIP_CONFIG_KEYS:
-            continue
-        if not isinstance(value, dict):
-            continue
-        if key == task_name:
-            if _is_task_group(value):
-                continue
-            return value
-        if _is_task_group(value):
-            prefix = f"{key}_"
-            if task_name.startswith(prefix):
-                sub_key = task_name[len(prefix):]
-                if sub_key in value:
-                    sub_value = value[sub_key]
-                    return sub_value if isinstance(sub_value, dict) else {}
-    return None
+    from . import task_registry
+    registry = task_registry.TaskRegistry(BASE_DIR)
+    info = registry.get_task_info(task_name)
+    if info is None:
+        return None
+
+    if info.group:
+        group_cfg = config.get(info.group, {})
+        sub_name = task_name[len(info.group) + 1:] if task_name.startswith(f"{info.group}_") else task_name
+        sub_value = group_cfg.get(sub_name)
+        return sub_value if isinstance(sub_value, dict) else {}
+    else:
+        value = config.get(task_name)
+        return value if isinstance(value, dict) and not _is_task_group(value) else {}
 
 
 def _set_task_enabled(config, task_name, enabled):
@@ -151,42 +126,9 @@ def save_config(config: dict) -> None:
 
 
 def _build_default_config() -> dict:
-    config: dict = {"lang": "auto", "scan_ms": 2000}
-    tasks_dir = os.path.join(BASE_DIR, "tasks")
-    if not os.path.isdir(tasks_dir):
-        return config
-
-    all_names = set(os.listdir(tasks_dir))
-    ordered_names = [n for n in _TASK_ORDER if n in all_names]
-    for extra in sorted(all_names - set(_TASK_ORDER)):
-        ordered_names.append(extra)
-
-    for name in ordered_names:
-        task_path = os.path.join(tasks_dir, name, "task.py")
-        if not os.path.isfile(task_path):
-            continue
-        if name == "anti_afk":
-            config["anti_afk"] = {"enabled": False, "interval_min": 10, "key": "enter"}
-            continue
-        mod = _load_task_module(name)
-        if mod is None:
-            continue
-        task_cls = getattr(mod, "Task", None)
-        if task_cls is None:
-            continue
-        group = getattr(task_cls, "group", None)
-        defaults = getattr(task_cls, "default_config", {})
-        task_cfg = {"enabled": False, "scan_ms": 500}
-        task_cfg.update(defaults)
-        if group:
-            if group not in config:
-                config[group] = {}
-            sub_name = name[len(group) + 1:] if name.startswith(f"{group}_") else name
-            config[group][sub_name] = task_cfg
-        else:
-            config[name] = task_cfg
-
-    return config
+    from . import task_registry
+    registry = task_registry.TaskRegistry(BASE_DIR)
+    return registry.build_config()
 
 
 def detect_game_language() -> str:
