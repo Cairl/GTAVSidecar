@@ -2,6 +2,50 @@
 
 GTA5 辅助后台工具集 — 通过视觉识别（4K RGBA 透明覆盖图匹配）检测游戏画面 UI 元素，自动执行鼠标点击、键盘操作或进程操作。
 
+## 26w19g
+
+### 修改范围
+- `tasks/hack_solver_bruteforce/` — 新建任务目录，包含 `task.py` 和 `global/` 覆盖图资源
+- `tasks/hack_solver_bruteforce/task.py` — Task 类（group=hack_solver, run_once=True）+ BruteForceSolver
+- `tasks/hack_solver_bruteforce/global/trigger.png` — BRUTEFORCE 标题面板覆盖图（从桌面复制）
+- `tasks/hack_solver_bruteforce/global/1.png~8.png` — 8 个方框覆盖图（从桌面复制）
+- `locales/zh_CN.json` — 新增 `task.hack_solver_bruteforce`、5 个 `hack.hack_solver_bruteforce.*` 翻译键
+- `locales/zh_TW.json` — 同上
+- `locales/en_US.json` — 同上
+- `config.json` — `hack_solver` 分组新增 `bruteforce` 配置项（enabled: true, scan_ms: 50）
+
+### 原因与背景
+1. 新增 BRUTEFORCE 黑客小游戏自动破解任务，隶属 hack_solver 分组
+2. 游戏机制：8 个水平等距方框按顺序激活，激活方框有竖线+横线（未激活只有横线），红色字母滑入方框时按回车
+3. 初版使用 OverlayMatcher 匹配 8 个方框覆盖图检测活跃方框，性能极差（每轮 8 次 absdiff + 1 次 trigger 匹配），红色字母滑过多个才可能选中一个
+4. 改为坐标采样方案：load() 阶段从覆盖图 bbox 提取坐标缓存，运行时直接采样方框左右竖线 1px 条带亮度判断是否激活，跳过覆盖图匹配
+5. `_is_game_active` 每轮匹配 trigger（171K 像素覆盖图）改为仅在无活跃方框时才匹配，区分"游戏完成"和"过渡帧"
+6. `run()` 循环的 `attempts` 计数器对每次返回 None 都递增，MAX_ATTEMPTS=10 配合 50ms 间隔仅 500ms 就放弃退出，导致完成第 1 个方框后等不到第 2 个激活就终止
+7. `active_cell is None` 且 trigger 仍匹配时返回 "reset" 导致过渡帧被误判为失败，重置已完成的进度
+
+### 行为差异
+
+| 场景 | 修改前 | 修改后 |
+|------|--------|--------|
+| 活跃方框检测 | 8 次 OverlayMatcher.match_from_image（absdiff） | 采样左右竖线 1px 条带亮度（O(123) vs O(124×123)） |
+| trigger 匹配频率 | 每轮循环 | 仅在无活跃方框时 |
+| 循环额外延迟 | run() 每轮 sleep(0.3) + _attempt_hack sleep(0.1) | 仅 sleep(scan_interval) |
+| scan_ms 默认值 | 100ms | 50ms |
+| 按回车后等待 | 0.3s | 0.2s |
+| 过渡帧处理 | 返回 "reset"（误判失败，重置进度） | 返回 None（继续等待） |
+| attempts 计数 | 每次返回 None 递增，500ms 后放弃 | 仅截图失败递增，正常等待不计数 |
+
+### 系统影响
+- 新增任务通过 TaskRegistry 自动发现注册，无需修改 `_TASK_ORDER` 或核心代码
+- BruteForceSolver 的坐标采样方案不影响其他任务
+- config.json 中 bruteforce 默认 enabled: true，scan_ms: 50
+
+### 关键问题
+- 初版覆盖图匹配方案每轮耗时过长（8×absdiff + trigger absdiff），红色字母滑动窗口仅约 1-2 秒，根本来不及反应
+- `_is_cell_active` 通过检测方框左右边缘竖线条带亮度区分激活/未激活，阈值 VLINE_BRIGHT_THRESHOLD=100、VLINE_RATIO_THRESHOLD=0.05
+- 过渡帧问题：按回车后方框切换需要短暂时间，此帧无活跃方框但 trigger 仍匹配，必须返回 None 而非 reset
+- attempts 计数器语义从"总循环次数"改为"连续截图失败次数"，避免正常等待状态被误判为超时
+
 ## 26w19f
 
 ### 修改范围

@@ -29,6 +29,7 @@
 
     "task.hack_solver_voltlab": "電壓連線",
     "task.hack_solver_connect_host": "連接主機",
+    "task.hack_solver_bruteforce": "暴力破解",
 
     "group.hack_solver": "駭客遊戲自動破譯",
 
@@ -64,6 +65,11 @@
     "hack.hack_solver_connect_host.completed": "破解完成",
     "hack.hack_solver_connect_host.game_start": "遊戲開始",
     "hack.hack_solver_connect_host.game_over": "遊戲結束",
+    "hack.hack_solver_bruteforce.capture_failed": "截屏失敗",
+    "hack.hack_solver_bruteforce.game_start": "遊戲開始",
+    "hack.hack_solver_bruteforce.game_over": "完成",
+    "hack.hack_solver_bruteforce.resetting": "重試中...",
+    "hack.hack_solver_bruteforce.progress": "■ {current}/{total}",
 
     "anti_afk_sent": "發送按鍵 {key_name}",
     "status_connected": "已連接",

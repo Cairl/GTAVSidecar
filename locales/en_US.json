@@ -29,6 +29,7 @@
 
     "task.hack_solver_voltlab": "VOLTlab",
     "task.hack_solver_connect_host": "CONNECTING TO THE HOST",
+    "task.hack_solver_bruteforce": "BRUTEFORCE",
 
     "group.hack_solver": "Hack Solver",
 
@@ -64,6 +65,11 @@
     "hack.hack_solver_connect_host.completed": "Hack complete",
     "hack.hack_solver_connect_host.game_start": "Game started",
     "hack.hack_solver_connect_host.game_over": "Game over",
+    "hack.hack_solver_bruteforce.capture_failed": "Capture failed",
+    "hack.hack_solver_bruteforce.game_start": "Game started",
+    "hack.hack_solver_bruteforce.game_over": "Complete",
+    "hack.hack_solver_bruteforce.resetting": "Retrying...",
+    "hack.hack_solver_bruteforce.progress": "■ {current}/{total}",
 
     "anti_afk_sent": "Sent key {key_name}",
     "status_connected": "Connected",
