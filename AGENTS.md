@@ -2,228 +2,6 @@
 
 GTA5 辅助后台工具集 — 通过视觉识别（4K RGBA 透明覆盖图匹配）检测游戏画面 UI 元素，自动执行鼠标点击、键盘操作或进程操作。
 
-## 26w19g
-
-### 修改范围
-- `tasks/hack_solver_bruteforce/` — 新建任务目录，包含 `task.py` 和 `global/` 覆盖图资源
-- `tasks/hack_solver_bruteforce/task.py` — Task 类（group=hack_solver, run_once=True）+ BruteForceSolver
-- `tasks/hack_solver_bruteforce/global/trigger.png` — BRUTEFORCE 标题面板覆盖图（从桌面复制）
-- `tasks/hack_solver_bruteforce/global/1.png~8.png` — 8 个方框覆盖图（从桌面复制）
-- `locales/zh_CN.json` — 新增 `task.hack_solver_bruteforce`、5 个 `hack.hack_solver_bruteforce.*` 翻译键
-- `locales/zh_TW.json` — 同上
-- `locales/en_US.json` — 同上
-- `config.json` — `hack_solver` 分组新增 `bruteforce` 配置项（enabled: true, scan_ms: 50）
-
-### 原因与背景
-1. 新增 BRUTEFORCE 黑客小游戏自动破解任务，隶属 hack_solver 分组
-2. 游戏机制：8 个水平等距方框按顺序激活，激活方框有竖线+横线（未激活只有横线），红色字母滑入方框时按回车
-3. 初版使用 OverlayMatcher 匹配 8 个方框覆盖图检测活跃方框，性能极差（每轮 8 次 absdiff + 1 次 trigger 匹配），红色字母滑过多个才可能选中一个
-4. 改为坐标采样方案：load() 阶段从覆盖图 bbox 提取坐标缓存，运行时直接采样方框左右竖线 1px 条带亮度判断是否激活，跳过覆盖图匹配
-5. `_is_game_active` 每轮匹配 trigger（171K 像素覆盖图）改为仅在无活跃方框时才匹配，区分"游戏完成"和"过渡帧"
-6. `run()` 循环的 `attempts` 计数器对每次返回 None 都递增，MAX_ATTEMPTS=10 配合 50ms 间隔仅 500ms 就放弃退出，导致完成第 1 个方框后等不到第 2 个激活就终止
-7. `active_cell is None` 且 trigger 仍匹配时返回 "reset" 导致过渡帧被误判为失败，重置已完成的进度
-
-### 行为差异
-
-| 场景 | 修改前 | 修改后 |
-|------|--------|--------|
-| 活跃方框检测 | 8 次 OverlayMatcher.match_from_image（absdiff） | 采样左右竖线 1px 条带亮度（O(123) vs O(124×123)） |
-| trigger 匹配频率 | 每轮循环 | 仅在无活跃方框时 |
-| 循环额外延迟 | run() 每轮 sleep(0.3) + _attempt_hack sleep(0.1) | 仅 sleep(scan_interval) |
-| scan_ms 默认值 | 100ms | 50ms |
-| 按回车后等待 | 0.3s | 0.2s |
-| 过渡帧处理 | 返回 "reset"（误判失败，重置进度） | 返回 None（继续等待） |
-| attempts 计数 | 每次返回 None 递增，500ms 后放弃 | 仅截图失败递增，正常等待不计数 |
-
-### 系统影响
-- 新增任务通过 TaskRegistry 自动发现注册，无需修改 `_TASK_ORDER` 或核心代码
-- BruteForceSolver 的坐标采样方案不影响其他任务
-- config.json 中 bruteforce 默认 enabled: true，scan_ms: 50
-
-### 关键问题
-- 初版覆盖图匹配方案每轮耗时过长（8×absdiff + trigger absdiff），红色字母滑动窗口仅约 1-2 秒，根本来不及反应
-- `_is_cell_active` 通过检测方框左右边缘竖线条带亮度区分激活/未激活，阈值 VLINE_BRIGHT_THRESHOLD=100、VLINE_RATIO_THRESHOLD=0.05
-- 过渡帧问题：按回车后方框切换需要短暂时间，此帧无活跃方框但 trigger 仍匹配，必须返回 None 而非 reset
-- attempts 计数器语义从"总循环次数"改为"连续截图失败次数"，避免正常等待状态被误判为超时
-
-## 26w19f
-
-### 修改范围
-- `core/renderer.py` — 新增 `C_BLUE` 颜色常量定义
-- `core/__init__.py` — `C_BLUE` 改为从 `renderer` 导入，`_log_buffer` 注入改为 `log_buffer` 模块而非内部实例
-- `core/task_registry.py` — `_is_task_group` 重命名为 `is_task_group`（公开静态方法），新增 `extract_sub_name` 静态方法
-- `core/config.py` — 删除本地 `_is_task_group` 副本和 `_migrate_config` 一次性迁移函数；`_flatten_task_configs`/`_get_task_config`/`_build_default_config` 改用 `_get_registry()` 缓存单例，`sub_name` 提取改用 `extract_sub_name`
-- `core/task_runner.py` — `reload()` 改用 `_reset_state()` 替代手动重置；所有硬编码 ANSI 颜色码替换为 `_renderer.C_RED`/`C_YELLOW`/`C_RESET`；`_log_mod._log_buffer.add()` 改为 `_log_mod.add()`
-- `core/task_base.py` — 新增 `from . import renderer as _renderer`；所有硬编码 ANSI 颜色码替换为 `_renderer` 常量；`_color_step` 移除已无消费者的 `|` 分割逻辑；`_log_mod._log_buffer.add()` 改为 `_log_mod.add()`
-- `core/resource_monitor.py` — `_SYSTEM_INFO` 结构体从 `_get_cpu_count()` 内部移至模块级别；`get_game_status()` 新增 `lifecycle` 参数，优先使用生命周期状态
-- `core/log_buffer.py` — 新增模块级 `add()`、`replace_at()`、`recent()`、`set_log_dir()` 代理函数
-- `main.py` — 硬编码 ANSI 颜色码替换为 `renderer` 常量；`log_buffer._log_buffer.xxx` 改为 `log_buffer.xxx` 模块级 API；`get_game_status()` 传入 `lifecycle` 参数
-
-### 原因与背景
-1. `C_BLUE` 在 `__init__.py` 内联定义而非放在颜色常量集中管理模块 `renderer.py`，违反单一来源原则
-2. `_is_task_group` 在 `config.py` 和 `task_registry.py` 重复实现，`sub_name` 提取逻辑重复 4 次，违反 DRY 原则
-3. `_flatten_task_configs`/`_get_task_config`/`_build_default_config` 每次调用都创建新 `TaskRegistry` 实例，重复扫描 tasks/ 目录
-4. `reload()` 手动重置 4 个状态变量，与 `_reset_state()` 逻辑重复且易遗漏
-5. `task_runner.py`、`task_base.py`、`main.py` 中 15+ 处硬编码 ANSI 颜色码（如 `\033[38;2;243;139;168m`），修改颜色需逐处查找替换
-6. `_SYSTEM_INFO` 定义在 `_get_cpu_count()` 函数内部，每次调用重新定义类，不符合 ctypes 结构体模块级定义惯例
-7. `_migrate_config` 是 `ip_crack` → `connect_host` 的一次性迁移代码，该迁移早已完成，属于遗留代码
-8. `build_config` 中 `anti_afk` 硬编码特殊处理，与 Task 类 `default_config` 机制重复
-9. `_color_step` 的 `|` 分割逻辑自 26w18g 后已无消费者，属于死代码
-10. `get_game_status()` 独立查询进程和窗口，与 `GameLifecycleManager` 逻辑重复
-11. `_log_buffer` 内部实例被 63 处直接访问（`_log_mod._log_buffer.add()`），违反封装原则
-
-### 行为差异
-
-| 场景 | 修改前 | 修改后 |
-|------|--------|--------|
-| 颜色常量来源 | `C_BLUE` 内联在 `__init__.py`，其他颜色硬编码在调用处 | 所有颜色常量集中定义在 `renderer.py`，其他模块通过导入引用 |
-| 任务组判断 | `config.py` 和 `task_registry.py` 各自实现 `_is_task_group` | 统一为 `TaskRegistry.is_task_group()` 公开静态方法 |
-| 子任务名提取 | 4 处独立实现 `name[len(group)+1:]` 逻辑 | 统一为 `TaskRegistry.extract_sub_name()` 静态方法 |
-| TaskRegistry 实例 | 每次调用 `_flatten_task_configs`/`_get_task_config` 创建新实例 | `_get_registry()` 懒加载缓存单例 |
-| `reload()` 状态重置 | 手动重置 4 个变量 | 调用 `_reset_state()` 共用方法 |
-| `build_config` 中 anti_afk | 硬编码覆盖默认配置 | 由 Task 类 `default_config` 自动合并 |
-| `_color_step` | 包含 `|` 分割两色渲染逻辑（无消费者） | 简化为直接着色 |
-| `get_game_status` | 始终独立查询进程+窗口 | 传入 `lifecycle` 时优先使用生命周期状态 |
-| 日志 API | `_log_mod._log_buffer.add()` 穿透访问内部实例 | `_log_mod.add()` 使用模块级代理函数 |
-| `_migrate_config` | 每次加载配置时执行迁移检查 | 已移除，配置文件已全部迁移完成 |
-
-### 系统影响
-- 所有修改均为内部重构，无外部行为变化
-- `_get_registry()` 缓存单例减少 tasks/ 目录重复扫描，配置读取性能提升
-- `log_buffer` 模块级 API 不影响 task 文件中的 `_log_buffer.add()`/`_log_buffer.replace_at()` 调用，因为注入符号从实例改为模块，模块上有同名方法
-- `get_game_status(lifecycle)` 向后兼容，不传 `lifecycle` 参数时行为与修改前一致
-
-### 关键问题
-- `log_buffer` 注入符号从 `_LogBuffer` 实例改为 `log_buffer` 模块，task 文件中 `_log_buffer.add()` 调用仍有效，因为模块新增了同名代理函数
-- `_get_registry()` 使用 `global _registry` + 延迟导入避免循环依赖，类型注解使用字符串形式
-- `task_registry.py` 中 `build_config` 的缩进错误（`config[info.group][sub_name]` 在 `if info.group:` 块外）已一并修复
-
-## 26w19e
-
-### 修改范围
-- `core/resource_monitor.py` — 新增 `_get_cpu_count()` 函数，通过 `GetSystemInfo` 获取逻辑处理器数量；`_CPU_COUNT` 常量初始化；`sample_process_resources()` 计算 CPU 百分比时除以 `_CPU_COUNT`
-
-### 原因与背景
-`GetProcessTimes` 返回的 CPU 时间是进程在所有逻辑核心上消耗的时间总和。原公式 `process_delta / (wall_delta * 10_000_000) * 100` 未除以 CPU 核心数，导致多核 CPU 上显示值被放大（如 16 核 32 线程系统上，满负荷进程显示约 3200%，被 `min(..., 100.0)` 截断前约为实际值的 32 倍）。用户反馈程序内显示 34% 而任务管理器仅 2.6%，差异巨大。
-
-### 行为差异
-
-| 场景 | 修改前 | 修改后 |
-|------|--------|--------|
-| CPU 占用计算 | 未除以核心数，多核系统显示值被放大 | 除以逻辑处理器数，与任务管理器定义一致 |
-| 16C32T 满负荷显示 | ~100%（截断前 3200%） | ~3.1% |
-| 与任务管理器一致性 | 差异巨大（如 34% vs 2.6%） | 基本一致 |
-
-### 系统影响
-- 仅影响 `resource_monitor.py` 的 CPU 百分比计算，内存采样和游戏状态检测无变化
-- `_get_cpu_count()` 在模块加载时执行一次，运行时零额外开销
-- `get_cpu_percent()` 返回值范围不变（0.0~100.0），但语义从"单核相对占用"变为"整机相对占用"
-
-### 关键问题
-- `GetSystemInfo` 的 `_SYSTEM_INFO` 结构体需完整定义前 11 个字段才能正确定位 `dwNumberOfProcessors`
-- 使用 `max(si.dwNumberOfProcessors, 1)` 防止极端情况返回 0 导致除零错误
-- 该修复与 26w19c 中"CPU 突然飙高"现象属于不同问题：26w19c 是渲染循环开销，本次是计算公式错误
-
-## 26w19d
-
-### 修改范围
-- `core/game_lifecycle.py` — 新建模块，GameLifecycleManager 统一游戏进程生命周期管理
-- `core/task_runner.py` — 构造函数新增 `lifecycle` 参数，`_run()` 接入 lifecycle 状态检测
-- `core/task_registry.py` — 新建模块，TaskRegistry 自动扫描注册任务元数据
-- `core/config.py` — 移除 `_TASK_ORDER`，`_build_default_config`、`_flatten_task_configs`、`_get_task_config` 改用 TaskRegistry
-- `core/i18n.py` — 新增 `apply_overrides()` 支持运行时翻译合并
-- `core/__init__.py` — `_INJECT_SYMBOLS` 新增 `GameLifecycleManager`、`TaskRegistry`、`TaskInfo`
-- `main.py` — 初始化 GameLifecycleManager 和 TaskRegistry，注册生命周期状态监听，使用 registry 排序
-- `locales/zh_CN.json` — 新增 `lifecycle_game_started`、`lifecycle_game_exited`
-- `locales/zh_TW.json` — 同上
-- `locales/en_US.json` — 同上
-
-### 原因与背景
-1. 游戏退出后，N 个启用任务各自每 2 秒独立查询进程+窗口，造成无意义的 CPU 消耗。需要统一监控游戏生命周期，游戏退出后暂停所有画面检测，仅保留低频进程轮询。
-2. 新增任务时必须修改 `_TASK_ORDER` 和三个 locale 文件，违背"任务自包含"设计初衷。需要自动发现任务、自动生成配置、自动加载翻译。
-
-### 行为差异
-
-| 场景 | 修改前 | 修改后 |
-|------|--------|--------|
-| 游戏未运行，N 个任务启用 | N 个 runner 各自每 2 秒查询进程+窗口 | GameLifecycleManager 每 5 秒查询 1 次进程；runner 阻塞等待唤醒 |
-| 游戏启动 | 各 runner 陆续检测到窗口 | lifecycle 统一检测，广播 RUNNING 事件，所有 runner 同时恢复 |
-| 游戏退出 | 各 runner 独立进入 paused，继续轮询 | lifecycle 广播 NOT_RUNNING 事件，runner 进入深度休眠 |
-| 状态变更日志 | 无 | 游戏启动/退出时自动输出彩色日志 |
-| 新增任务流程 | 改 `_TASK_ORDER` + 3 个 locale 文件 + config.py | 只需创建 `tasks/{name}/task.py`，自动发现注册 |
-| 任务排序 | 硬编码 `_TASK_ORDER` 列表 | `order` 字段自动排序（默认 999） |
-| 配置生成 | 手动遍历目录、加载模块、读取 default_config | `registry.build_config()` 一行完成 |
-| 翻译管理 | 集中式 locale 文件 | 支持 manifest.json 运行时覆盖 + 原有 locale 兜底 |
-
-### 系统影响
-- GameLifecycleManager 作为单例服务贯穿应用生命周期，后续阶段可直接消费其状态事件
-- TaskRegistry 启动时一次性扫描 tasks/ 目录（< 10ms），运行时零额外开销
-- 所有现有任务零改动兼容，无需 manifest.json
-- config.py 从 ~190 行简化至 ~130 行，消除硬编码列表
-
-### 关键问题
-- GameLifecycleManager 使用 threading.Event 实现 wait_for_state，确保 runner 线程安全阻塞等待
-- TaskRegistry 的 `_load_from_task_py` 复用现有 `_load_task_module` 和符号注入机制，保持向后兼容
-- 翻译覆盖采用运行时合并策略，不写回 locale 文件，避免污染版本控制
-
-## 26w19c
-
-### 修改范围
-- `tasks/join_online/task.py` — 新建任务，覆写 `execute_start_trigger`，PID 追踪 + 鼠标移动 + 回车键
-- `core/__init__.py` — `_INJECT_SYMBOLS` 新增 `move_cursor_to`、`_find_pid_by_name`
-- `core/windows_api.py` — 新增 `move_cursor_to()` 函数（仅移动光标不点击）
-- `core/config.py` — `_TASK_ORDER` 插入 `join_online`
-- `locales/zh_CN.json` — 新增 `task.join_online`、`step.trigger.join_online` 翻译键
-- `locales/zh_TW.json` — 同上
-- `locales/en_US.json` — 同上
-- `config.json` — 新增 `join_online` 配置项
-
-### 原因与背景
-游戏启动后需要手动点击"加入在线模式"按钮进入线上模式，用户希望自动化此操作。该按钮在每次游戏启动后只出现一次，因此同一游戏进程（PID）生命周期内只需执行一次，游戏重启后应自动重置。
-
-### 行为差异
-
-| 场景 | 修改前 | 修改后 |
-|------|--------|--------|
-| 游戏启动后检测到"加入在线模式"按钮 | 无自动操作 | 移动鼠标到按钮位置 + 按回车确认 |
-| 同一游戏进程再次检测到按钮 | — | 静默跳过，不重复操作 |
-| 游戏重启（新 PID）后检测到按钮 | — | 自动重置，再次执行 |
-| 鼠标点击方式 | — | 不使用鼠标点击，改为移动光标 + 回车键 |
-
-### 系统影响
-- `move_cursor_to` 新增为 `windows_api` 的公开函数，仅调用 `SetCursorPos` 不发送点击事件
-- `_find_pid_by_name` 从 `windows_api` 内部函数暴露到 `_INJECT_SYMBOLS`，task.py 可直接使用
-- 任务始终 enabled + 循环扫描，PID 变化自动重置，用户无需手动干预
-- `_TASK_ORDER` 中 `join_online` 位于 `create_invite_only` 之后
-
-### 关键问题
-- 初版使用 `_click_matcher`（鼠标中键点击）无法成功触发按钮，改为 `move_cursor_to` + `send_key("enter")` 方案
-- `_find_pid_by_name` 原为 `windows_api` 内部函数（下划线前缀），需加入 `_INJECT_SYMBOLS` 才能在 task.py 中通过符号注入使用
-
-## 26w19b
-
-### 修改范围
-- `core/windows_api.py` — `click_at()` 函数追加 `MOUSEEVENTF_MIDDLEUP` 弹起事件；新增 `MOUSEEVENTF_MIDDLEUP = 0x0040` 常量
-
-### 原因与背景
-`focus_game_window()` 在 `bring_to_foreground()` 失败后会调用 `click_at()` 向游戏窗口中心发送一次鼠标中键点击，以强制激活窗口。但 `click_at()` 只发送了 `MOUSEEVENTF_MIDDLEDOWN`（中键按下），没有发送对应的弹起事件。这导致鼠标中键在系统层面一直处于按下状态，游戏会感知为中键被持续按住，可能引发意外的中键绑定行为（如载具视角切换、武器轮盘等）。
-
-### 行为差异
-
-| 场景 | 修改前 | 修改后 |
-|------|--------|--------|
-| 切换游戏到前台的中键点击 | 仅发送按下，中键持续按住 | 按下后立即弹起，恢复正常状态 |
-| 游戏内中键行为 | 可能触发意外的持续按住效果 | 仅产生单次点击，无残留状态 |
-
-### 系统影响
-- `click_at()` 现在通过 `SendInput` 一次性发送两个 `_INPUT` 事件（DOWN + UP），事件数量从 1 变为 2
-- 新增常量 `MOUSEEVENTF_MIDDLEUP` 遵循既有命名规范，与 `MOUSEEVENTF_MIDDLEDOWN` 成对
-- 仅影响 `focus_game_window()` 调用的中键点击路径，不影响其他鼠标或键盘输入逻辑
-
-### 关键问题
-- 该 bug 属于代码编写时的遗漏：`click_at()` 意图是"点击"（按下+弹起），但实现只完成了"按下"
-- `SendInput` 的数组构造使用 `(_INPUT * 2)()`  ctypes 数组方式，与单事件调用的 `ctypes.byref()` 不同，需确保数组指针传递正确
-
 ## 目录结构
 
 ```
@@ -233,20 +11,24 @@ GTAVSidecar/
 ├── core/                # 共享核心模块
 │   ├── __init__.py      # 统一导出 + _INJECT_SYMBOLS 组装
 │   ├── i18n.py          # 翻译引擎
-│   ├── log_buffer.py    # 日志缓冲 + hack 显示状态
+│   ├── log_buffer.py    # 日志缓冲 + 文件持久化
 │   ├── config.py        # 配置管理 + Steam 语言检测 + 模块加载
 │   ├── windows_api.py   # Win32 API 封装（窗口/截图/输入/进程）
 │   ├── resource_monitor.py # CPU/内存采样 + 游戏状态检测
 │   ├── task_base.py     # BaseTask + OverlayMatcher
 │   ├── task_runner.py   # TaskRunner 状态机
-│   └── renderer.py      # TUI 面板构建
+│   ├── task_registry.py # 任务自动扫描注册
+│   ├── game_lifecycle.py # 游戏进程生命周期管理
+│   └── renderer.py      # TUI 面板构建 + 颜色常量
 ├── locales/             # UI 翻译（zh_CN.json / zh_TW.json / en_US.json）
 └── tasks/               # 任务目录，每个自包含
     ├── bunker_fast_track_research/     # 覆盖图匹配 + 点击
     ├── close_game_at_results/          # 覆盖图匹配 + 进程终止
     ├── hack_solver_connect_host/        # OCR + BFS寻路（连接主机）
     ├── hack_solver_voltlab/            # OCR + 排列求解（电压连线）
+    ├── hack_solver_bruteforce/         # 坐标采样 + 红色像素检测（暴力破解）
     ├── create_invite_only/             # 纯按键序列
+    ├── join_online/                    # PID 追踪 + 鼠标移动 + 回车
     ├── anti_afk/                       # 防挂机定时按键
     └── show_performance/               # 性能显示开关
 ```
@@ -262,6 +44,7 @@ class Task(BaseTask):
     steps = []                      # 步骤序列
     step_timeout_ms = 30000         # 步骤超时
     run_once = False                # True = 执行后自动禁用
+    default_config = {}             # 自定义配置默认值，首次运行时自动合并到 config.json
 ```
 
 **三种任务模式**：
@@ -272,25 +55,35 @@ class Task(BaseTask):
 | 触发+步骤 | `{"overlay": "trigger"}` | `[{"overlay": "step1"}]` | 检测触发→按序执行→循环（如地堡加速） |
 | 触发+hack | `{"overlay": "trigger", "click": False}` | `[{"overlay": "hack", "action": "hack"}]` | 覆写 `execute_step` 调用自定义 solver |
 
-**符号注入**：`task.py` 可直接使用 `BaseTask`、`OverlayMatcher`、`send_key` 等符号（由 `core/__init__.py` 注入），标准库和第三方库仍需显式 import。
+**`run_once` 机制**：任务执行完成后自动将 `enabled` 设为 `False` 并停止。适用于 hack solver 等一次性任务。开启后持续扫描直到检测到 trigger 并完成执行后才停用，首次扫描无 trigger 不会提前失败。
+
+**`default_config` 机制**：Task 类定义 `default_config` 字典，`TaskRegistry.build_config()` 自动合并。新任务添加自定义配置项时只需在 Task 类定义 `default_config`，无需修改 config.py。
+
+**符号注入**：`task.py` 可直接使用 `BaseTask`、`OverlayMatcher`、`send_key`、`capture_window`、`focus_game_window`、`clip_cursor_to_window`、`unclip_cursor`、`get_client_offset`、`move_cursor_to`、`_find_pid_by_name`、`C_RED`、`C_GREEN`、`C_YELLOW`、`C_RESET`、`C_HIGHLIGHT`、`translate`、`_log_buffer` 等符号（由 `core/__init__.py` 注入），标准库和第三方库仍需显式 import。
 
 ### TaskRunner 状态机
 
-双频检测：等待阶段低频（`scan_ms`），执行阶段高频（`task.scan_ms`）。检测到 `start_trigger` → 执行步骤序列 → 全部完成后回到等待阶段。游戏未运行时暂停，每 2 秒检查一次。
+双频检测：等待阶段低频（全局 `scan_ms`），执行阶段高频（`task.scan_ms`）。检测到 `start_trigger` → 执行步骤序列 → 全部完成后回到等待阶段。游戏未运行时暂停，等待 `GameLifecycleManager` 唤醒。
+
+**状态重置**：`_reset_state()` 提取为共用方法，重置 `_sequence_started`、`_current_step`、`_timeout_count`、`_last_confidence`。`stop()`（外部调用）和 `_disable_and_stop_in_config()`（工作线程内部）均调用此方法。
+
+**工作线程内停止**：`_disable_and_stop_in_config()` 直接设置 `_running=False` + `_status="stopped"` + `_reset_state()`，不可调用 `stop()`（后者会 `join` 当前线程导致 `RuntimeError`）。
 
 ### 覆盖图匹配
 
 基于 4K RGBA 透明 PNG，不透明像素定义匹配目标，`cv2.absdiff` + mask 加权计算置信度（阈值 0.95）。支持固定位置和水平扫描两种模式。
 
+**坐标采样替代方案**：当覆盖图仅用于定位固定位置的 UI 元素（如 bruteforce 的 8 个方框），可在 `load()` 阶段从 `OverlayMatcher.bbox` 提取坐标缓存，运行时直接采样像素检测，避免每帧执行 absdiff。适合高频扫描场景（如 50ms 间隔）。
+
 ### 键盘输入
 
 使用**硬件扫描码** + `KEYEVENTF_SCANCODE`（RAGE 引擎/DirectInput 不响应虚拟键码）。`send_key()` 内部 `w/a/s/d` 映射为方向键扫描码。
 
-### 配置热重载
+### 配置管理
 
-`config.json` 通过 mtime 检测变更，`TaskRunner` 每轮循环检查并 `reload()`。
+**配置文件**：`config.json`，通过 mtime 检测变更，`TaskRunner` 每轮循环检查并 `reload()`。
 
-### 配置结构
+**配置结构**：
 
 ```json
 {
@@ -300,19 +93,56 @@ class Task(BaseTask):
     "create_invite_only": {"enabled": false, "scan_ms": 500},
     "hack_solver": {
         "voltlab": {"enabled": false, "scan_ms": 500},
-        "connect_host": {"enabled": false, "scan_ms": 500}
+        "connect_host": {"enabled": false, "scan_ms": 500, "auto_enter": false},
+        "bruteforce": {"enabled": false, "scan_ms": 50}
     }
 }
 ```
 
 - 分组任务的 `group` 在 `task.py` 类属性中定义，组键作为 `config.json` 的一级键，子任务为二级键
-- 任务顺序由 `core/config.py` 的 `_TASK_ORDER` 控制
+- 任务顺序由 `TaskRegistry` 的 `order` 字段自动排序
+
+**TaskRegistry**：启动时一次性扫描 `tasks/` 目录（< 10ms），自动发现注册任务元数据。提供 `build_config()`（合并 `default_config` 生成配置）、`get_task_info()`、`is_task_group()`、`extract_sub_name()` 等方法。使用 `_get_registry()` 懒加载缓存单例避免重复扫描。
+
+### 日志系统
+
+`log_buffer` 模块管理内存日志缓冲（200 行上限），同时实时写入 `logs/session_*.log` 纯文本文件（剥离 ANSI 颜色码），保留最近 5 个文件自动轮替。
+
+**API**：`add()`、`replace_at()`、`recent()`、`set_log_dir()` 通过模块级代理函数暴露。task 文件中使用 `_log_buffer.add()` / `_log_buffer.replace_at()`。
+
+### 颜色常量
+
+所有 ANSI 颜色码集中定义在 `renderer.py`：
+
+| 常量 | 用途 |
+|------|------|
+| `C_RED` | 错误/失败回显 |
+| `C_GREEN` | 成功回显 |
+| `C_YELLOW` | 游戏开始/重试回显 |
+| `C_BLUE` | 信息回显 |
+| `C_HIGHLIGHT` | 网格单元格高亮反色背景 |
+| `C_RESET` | 重置颜色 |
+
+通过 `_INJECT_SYMBOLS` 注入到 task 模块全局符号表，task.py 中可直接使用无需 import。
+
+### 游戏生命周期
+
+`GameLifecycleManager` 统一管理游戏进程生命周期：每 5 秒查询 1 次进程，使用 `threading.Event` 实现 `wait_for_state`，游戏退出后所有 runner 阻塞等待唤醒，游戏启动时广播 RUNNING 事件。避免 N 个任务各自每 2 秒独立轮询。
 
 ## 黑客求解器
 
+### 暴力破解 (bruteforce)
+
+8 个方框按顺序激活（激活方框有竖线+横线，未激活只有横线），红色字母在活跃方框内滑动。**坐标采样**检测活跃方框（从覆盖图 bbox 提取坐标，采样左右边缘 1px 竖线亮度 > 100 的像素占比 > 5%），**红色像素检测**判断何时按回车（R > 80 且 R > G × 2，占比 > 2%）。不识别字符。
+
+- 方框过渡期间 `_find_active_cell` 返回 None，通过 trigger 匹配区分"等待过渡"和"游戏完成"
+- `capture_fails` 仅对连续截图失败计数，正常等待不递增
+- 扫描间隔 50ms，按回车后 0.2s 等待切换
+- 误按 2 次即失败，所有方框消失时按回车重置
+
 ### 连接主机 (connect_host)
 
-8×10 网格，在网格中找 4 位目标序列，BFS 最短路径导航。逐步执行 + 周期性重读屏幕追踪网格滚动。自动检测失败界面并重置。
+8×10 网格，在网格中找 4 位目标序列，BFS 最短路径导航。逐步执行 + 周期性重读屏幕追踪网格滚动。自动检测失败界面并重置。`scan_ms` 通过 `_speed_ratio` 比例因子应用到破解全过程（按键间隔、动画等待、重读间隔），下限保护 `max(scan_ms, 50)`。
 
 ### 电压连线 (voltlab)
 
@@ -329,8 +159,11 @@ class Task(BaseTask):
 - **任务目录名 = config.json 键名**，以英文命名
 - **覆盖图必须 3840x2160 RGBA 透明 PNG**，所有语言版本目标 UI 元素位置一致
 - **用户可见文本必须走 `translate()`**，禁止硬编码
-- **菜单启用/禁用**用 🗹/☐ 表示
+- **翻译键命名**：`task.{task_name}` 用于任务显示名，`hack.{task_name}.{status}` 用于 hack 任务状态，按任务独立注册不跨任务共用
+- **菜单启用/禁用**用 🗹/☐ 表示，分组标题用 ☒ 前缀
 - **`run_once`** 任务执行后自动将 `enabled` 设为 `False` 并停止
+- **新增 hack solver**：只需创建 `tasks/{name}/` 目录 + `task.py`，TaskRegistry 自动发现注册，无需修改 config.py 或 locale 文件外的任何核心模块
+- **日志回显**：使用 `_log_buffer.add()` 新增行、`_log_buffer.replace_at()` 原地刷新行，格式 `[{display_name}] {message}`
 
 ## 新增任务步骤
 
@@ -348,397 +181,5 @@ class Task(BaseTask):
 - 覆盖图硬编码 4K 3840x2160，不支持多分辨率自适应
 - 黑客破解的网格坐标基于 4K 硬编码，游戏更新字体后需重新校准
 - `bring_to_foreground` 可能因 Windows 前台锁定策略失败
-
----
-
-## 26w18m
-
-### 修改范围
-- `tasks/hack_solver_connect_host/task.py` — 网格刷新改为全量统筹刷新；移除 `_last_highlighted_rows` 增量刷新逻辑
-- `tasks/hack_solver_connect_host/task.py` — `scan_ms` 应用到破解全过程（按键间隔、动画等待、重读间隔），新增 `_speed_ratio` 比例因子
-- `tasks/hack_solver_connect_host/task.py` — 网格渲染视觉重构：目标数字红色前景、光标灰色背景连续色块、重合时灰底红字
-- `tasks/hack_solver_connect_host/task.py` — 移除目标 Host 独立显示行（`target_detected` 从 `_init_display` 中移除）
-- `tasks/hack_solver_connect_host/task.py` — 移除 `low_conf` 调试输出残留
-- `tasks/hack_solver_connect_host/task.py` — `_clear_display` 不再用 `replace_at` 清空日志行内容，仅重置内部索引
-- `tasks/hack_solver_connect_host/task.py` — while 循环中 `capture_window` 失败改为 `continue` 重试，避免偶发截图失败导致任务停用
-- `tasks/hack_solver_connect_host/task.py` — `Task` 类覆写 `execute_start_trigger` 为 `pass`，去掉 trigger 检测回显
-
-### 原因与背景
-1. 网格刷新使用增量策略（`_last_highlighted_rows | new_highlighted`），光标同行内移动或网格滚动后非高亮行数字变化时不会刷新，导致显示与实际状态不一致
-2. `scan_ms` 仅控制屏幕重读间隔，按键频率（0.08s）、动画等待（0.3s/0.5s）全部硬编码，用户调快 `scan_ms` 体感无区别
-3. 目标 Host 行与网格阵列信息重复，且用户要求直接在网格中用颜色标识目标和光标
-4. `low_conf` 调试输出在 26w18k 清理 `_hack_display` 基础设施时被遗漏
-5. `_clear_display` 用 `replace_at(idx, "")` 把日志行变成只有时间戳的空行，视觉上残留难看空行；且 `capture_window` 偶发失败返回 `None` 导致 `run_once` 机制把任务停用，用户感知为"崩溃"
-6. trigger 检测回显 `[连接主机] 连接主机` 与 `_init_display` 的 `[连接主机] 游戏开始` 间隔 2 秒重复出现
-
-### 行为差异
-
-| 场景 | 修改前 | 修改后 |
-|------|--------|--------|
-| 网格刷新 | 仅刷新高亮行变化的部分行 | 始终一次性刷新全部 8 行 |
-| `scan_ms=250` 效果 | 仅重读间隔减半，按键速度不变 | 按键间隔、动画等待、重读全部按比例加速 |
-| 目标数字标识 | 独立一行 "目标 Host: xx.xx.xx.xx" | 网格中目标序列 4 格红色字体 |
-| 光标标识 | 无 / 灰底反色 | 深灰背景连续色块（`49;50;68`） |
-| 光标与目标重合 | 灰色背景优先 | 深灰背景 + 红色字体 |
-| 低置信度调试 | 输出 `low_conf: R1C1=...` | 已移除 |
-| 显示清除 | `replace_at` 清空为只有时间戳的空行 | 仅重置索引，旧行保持最后内容自然淡出 |
-| 截图偶发失败 | 清空显示 → 输出错误 → 返回 `None` → 任务停用 | 休眠 0.5s 后继续循环，自动重试 |
-| trigger 检测回显 | `[连接主机] 连接主机` + `[连接主机] 游戏开始` | 仅 `[连接主机] 游戏开始` |
-
-### 系统影响
-- `_last_highlighted_rows` 已完全移除，简化渲染逻辑
-- `scan_ms` 下限保护 `max(scan_ms, 50)` 防止延迟接近 0
-- `_clear_display` 不再修改 `log_buffer` 内容，与 `replace_at` 实现解耦
-- `execute_start_trigger` 覆写仅影响 `connect_host`，其他任务不变
-
-### 关键问题
-- 增量刷新初版用 XOR 计算变化行，光标同行移动时高亮集合不变导致不更新；修复为全量刷新
-- `scan_ms` 不生效根因是按键/动画硬编码与配置无关，需统一比例缩放
-- `capture_window` 返回 `None` 可能是暂时性窗口状态变化（遮挡/最小化），不应直接终止任务
-- 深灰背景色 `49;50;68` 经用户多次调整确定，与终端默认暗色主题协调
-
----
-
-## 26w18f
-
-### 修改范围
-- `tasks/hack_solver_voltlab/task.py` — 光标落点逻辑 + 动画延迟
-- `tasks/hack_solver_voltlab/global/grid.json` — animation_delay_ms 2000→3000
-- `core/task_base.py` — BaseTask 新增 `run_once` 类属性
-- `core/task_runner.py` — TaskRunner 新增 `_disable_and_stop_in_config()`、run_once 执行后自动禁用、首次扫描无 trigger 时快速失败
-- `tasks/hack_solver_connect_host/task.py` — 设置 `run_once = True`
-- `core/renderer.py` — 复选框符号 ☑→🗹
-- `locales/*.json` — 新增 `trigger_not_found` 翻译键
-- `config.json` — hack_solver 子任务默认 enabled: false
-- `AGENTS.md` — 精简去冗余（1453→129 行）
-
-### 原因与背景
-1. 电压连线光标落点逻辑错误：代码假设第 i 个数字 Enter 后光标必在槽位 i，但游戏实际规则是第 2 个数字 Enter 后光标优先落槽位 2→3→1（跳过已占），导致日志回显的配对方案与游戏实际执行不一致
-2. 黑客游戏任务始终循环扫描，启用后无法自动停止，需要改为"启用即执行、执行后即停用"的一次性模式
-3. 启用状态下若画面无 trigger 覆盖图，任务无限等待无反馈，需要快速失败并提示用户
-
-### 行为差异
-
-| 场景 | 修改前 | 修改后 |
-|------|--------|--------|
-| 电压连线第 2 数字配对 | 盲目假设光标在槽位 i | 按优先级 2→3→1 跳到首个未占槽位 |
-| 动画等待 | 2000ms | 3000ms |
-| 黑客任务启用后 | 始终循环扫描，需手动关闭 | 执行一次后自动禁用 |
-| 启用后画面无 trigger | 无限期等待检测 | 立即回显"尚未发现游戏"并自动禁用 |
-| 菜单启用标记 | ☑ | 🗹 |
-
-### 系统影响
-- `run_once` 机制与按键序列任务的自动禁用逻辑并列，不影响现有循环任务
-- 黑客任务默认配置从 enabled: true 改为 false，需用户手动启用
-
-### 关键问题
-- 电压连线不稳定根因是代码对游戏光标落点规则的假设错误，而非 OCR 识别问题
-- 动画延迟过短（2000ms）导致 Enter 在动画期间被吞掉，后续导航键在错误状态下执行，产生"平行连"结果
-- `C_RED` 常量通过 `_INJECT_SYMBOLS` 仅对 task.py 模块注入，`task_runner.py` 使用会 NameError，改用原始 ANSI 转义码
-
----
-
-## 26w18g
-
-### 修改范围
-- `locales/*.json` — 重构 hack 翻译键体系，删除 17 个旧通用键，新增 14 个按任务独立注册的新键
-- `locales/en_US.json` — "Create Invite-Only Session" 去连字符、"Voltlab"→"VOLTlab"、"Memory"→"Mem"、step 文本去 `|` 分隔符
-- `tasks/hack_solver_voltlab/task.py` — 6 处翻译键引用更新为 `hack.<task_name>.<status>` 格式
-- `tasks/hack_solver_connect_host/task.py` — 10 处翻译键引用更新
-- `core/renderer.py` — 内存显示自动缩放单位（<1024 MB 显示 MB，≥1024 MB 显示 GB）
-- `core/resource_monitor.py` — 采样间隔 2.0s→1.0s
-
-### 原因与背景
-1. hack 相关翻译键（`hack_target_read_failed`、`hack_capture_failed` 等）被 voltlab 和 connect_host 共用，但语义不同：voltlab 表示目标数字 OCR 失败，connect_host 表示目标格识别失败。混用导致回显不准确、排查困难
-2. 性能面板内存刷新 2 秒过慢，且超出 1024 MB 时仍显示小数不便阅读
-3. "Memory" 标签长度与 "CPU" 不一致，排版不紧凑
-4. step 文本中的 `|` 分隔符原用于两色渲染（action 白色 + detail 黄色），去掉后整段显示黄色，视觉更统一
-
-### 行为差异
-
-| 场景 | 修改前 | 修改后 |
-|------|--------|--------|
-| 翻译键注册 | 通用 `hack_*`/`breach_*` 跨任务共用 | `hack.<task_name>.<status>` 按任务独立注册 |
-| 电压连线读取失败回显 | "Failed to read target Host" | "Failed to read target number" |
-| connect_host 读取失败回显 | "Failed to read target Host" | "Failed to detect target" |
-| step 文本渲染 | `\|` 分割两色 | 整段黄色 |
-| 内存显示 | 始终 `X.X MB` | <1024: `X.X MB` / ≥1024: `X.XX GB` |
-| "Memory" 标签 | Memory | Mem |
-| 性能刷新间隔 | 2.0s | 1.0s |
-
-### 系统影响
-- 新增任务按 `hack.<task_name>.<status>` 命名独立注册翻译键，不再复用通用键
-- 闲置键（`breach_target_detected` 等 9 个）已从三个 locale 文件清除
-- `_color_step()` 中的 `|` 分割逻辑保留但不再被触发，向后兼容无影响
-
-### 关键问题
-- 重构涉及三个语言文件同步修改（17 旧键删除 + 14 新键添加 + 6 处文本调整），逐个对齐避免遗漏
-- 翻译键命名与已有 `step.<阶段>.<task_name>` 模式对齐为 `hack.<task_name>.<status>`，保持一致性
-
----
-
-## 26w18h
-
-### 修改范围
-- `tasks/hack_solver_ip_crack/` → `tasks/hack_solver_connect_host/` — 目录重命名
-- `core/config.py` — `_TASK_ORDER` 更新为新键名，新增 `_migrate_config()` 自动迁移旧配置
-- `locales/en_US.json` — 10 个翻译键 `hack_solver_ip_crack` → `hack_solver_connect_host`，显示名 "IP Crack" → "CONNECTING TO THE HOST"
-- `locales/zh_CN.json` — 10 个翻译键同步重命名，显示名 "网络地址" → "连接主机"
-- `locales/zh_TW.json` — 10 个翻译键同步重命名，显示名 "網路地址" → "連接主機"
-- `config.json` — 用户配置键 `ip_crack` → `connect_host`
-
-### 原因与背景
-任务显示名从 "IP Crack"（网络地址/網路地址）统一改为 "CONNECTING TO THE HOST"（连接主机/連接主機），涵盖目录名、内部键名、翻译键和配置文件键的全量重命名。
-
-### 行为差异
-
-| 场景 | 修改前 | 修改后 |
-|------|--------|--------|
-| 英文任务名 | IP Crack | CONNECTING TO THE HOST |
-| 简体中文任务名 | 网络地址 | 连接主机 |
-| 繁体中文任务名 | 網路地址 | 連接主機 |
-| 配置键名 | `hack_solver.ip_crack` | `hack_solver.connect_host` |
-
-### 系统影响
-- `load_config()` 内置 `_migrate_config()` 自动将旧 `ip_crack` 配置迁移为 `connect_host`，旧用户升级无感
-- 翻译键 `hack.hack_solver_ip_crack.*` → `hack.hack_solver_connect_host.*`，task.py 内通过 `self._task_name` 动态拼接无需改动
-
-### 关键问题
-- 目录重命名使用 `git mv` 保留版本历史
-- 翻译键在所有三种语言文件中严格对齐，避免键名不同步导致回退到键名原文
-
----
-
-## 26w18j
-
-### 修改范围
-- `main.py` — 主循环帧间隔从 0.15s 降至 0.02s，终端尺寸单次调用即缓存，渲染写入合并为单次批量输出
-- `core/renderer.py` — `_visible_len()` 添加 `@lru_cache(maxsize=512)` 缓存
-
-### 原因与背景
-菜单操作存在明显顿挫感。根因是主循环每帧固定 `time.sleep(0.15)`，导致按键到视觉反馈最多延迟 150ms。同时每帧存在多次不必要的系统调用（终端尺寸查询两次、逐行独立 ANSI 写入、重复的 Unicode 宽度扫描）。
-
-### 行为差异
-
-| 场景 | 修改前 | 修改后 |
-|------|--------|--------|
-| 菜单按键响应延迟 | 最多 ~150ms | 最多 ~20ms |
-| 终端尺寸获取 | 每帧调用 `shutil.get_terminal_size()` 两次 | 每帧调用一次 |
-| 渲染输出 | 逐行独立 `sys.stdout.write()` + 多次 ANSI 定位 | 合并为单个字符串后单次 `sys.stdout.write()` |
-| `_visible_len` 计算 | 每次重新扫描字符级 Unicode 宽度 | 最近 512 个结果缓存命中 |
-
-### 系统影响
-- 帧率从约 6.6fps 提升至约 50fps，CPU 占用相应增加但被批量写入和缓存优化所抵消
-- `shutil.get_terminal_size()` 减少一半调用量
-- 渲染仅在一次系统调用中完成，减少终端闪烁
-
-### 关键问题
-- 帧间隔不宜降至 0（忙等待），0.02s 在流畅度与 CPU 占用之间取得平衡
-
----
-
-## 26w18k
-
-### 修改范围
-- `tasks/hack_solver_connect_host/task.py` — `_find_target_in_grid` 方向键修复（`"right"`→`"d"`）；新增 `_set_status_line` 单行原地刷新 + `_clear_display` 方法；`HackingSolver.__init__` 新增 `_status_line_idx`；Task 类新增 `default_config`
-- `tasks/close_game_at_results/task.py` — 新增 `default_config = {"wait_ms": 2000}`
-- `core/task_base.py` — `BaseTask` 新增 `default_config: dict = {}` 类属性
-- `core/config.py` — `_build_default_config` + `_flatten_task_configs` 合并 `default_config`
-- `core/log_buffer.py` — 移除 `_hack_display`、`_hack_display_lock`、`_hack_display_update()`、`_hack_display_clear()`
-- `core/__init__.py` — 移除 `_hack_display_update`、`_hack_display_clear` 注入符号
-- `core/renderer.py` — 移除 `build_grid_panel()` 函数
-- `main.py` — 移除 `build_grid_panel()` 调用及 `grid_panel_h` / `log_avail` 相关计算
-- `config.json` — connect_host 新增 `auto_enter: true`；close_game_at_results 新增 `wait_ms: 2000`
-
-### 原因与背景
-1. 连接主机始终在"目标 Host → 重置游戏"间循环：`_find_target_in_grid` 中 `self._move(current, "right")` 调用 `_move` 方法，但 `_move` 仅处理 `"w"/"a"/"s"/"d"` 四个 WASD 键，`"right"` 不匹配任何分支成为 no-op，导致第 2-4 个目标数字始终与同一格比较，目标永远找不到
-2. 连接主机原有的 `_hack_display_update` → `build_grid_panel` 使用独立面板渲染 8×10 网格，与日志行分离，用户要求改为电压连线那样的 log-line + `replace_at` 原地刷新方式
-3. 配置文件缺少 `auto_enter` 选项，且首次运行时仅生成 `enabled` + `scan_ms`，其他任务自定义配置项需要手动补全，缺少自动生成机制
-
-### 行为差异
-
-| 场景 | 修改前 | 修改后 |
-|------|--------|--------|
-| 连接主机寻目标 | 始终找不到目标，循环重置 | 正确匹配 4 位目标序列并执行路径导航 |
-| 连接主机破解回显 | 独立网格面板渲染 | 单行日志 `add()` + `replace_at()` 原地刷新 |
-| `auto_enter` 配置 | 不存在，代码硬编码默认 True | config.json 生成时自动包含，可修改 |
-| 首次运行 config.json 生成 | 仅 `enabled` + `scan_ms` | 合并 Task 类的 `default_config`，包含所有自定义选项 |
-| `build_grid_panel` | 存在且仅被 connect_host 消费 | 完全移除 |
-
-### 系统影响
-- `_hack_display` 基础设施因 connect_host 是唯一消费者，已从 4 个文件中完全移除
-- `default_config` 机制向后兼容：不定义 `default_config` 的 Task 类行为不变
-- 新任务添加自定义配置项时只需在 Task 类定义 `default_config`，无需修改 `_build_default_config`
-
-### 关键问题
-- `_move` 在 `_find_target_in_grid` 中的 `"right"` 与 `_plan_path` 中的 `"d"` 不一致，属代码编写疏忽
-- `replace_at` 仅替换消息体，需在 msg 中包含 `[display_name]` 前缀以保持日志行格式一致
-
----
-
-## 26w18i
-
-### 修改范围
-- `core/renderer.py` — 分组标题行新增 ☒ 复选框符号，颜色恢复为默认色，子任务缩进减半
-
-### 原因与背景
-分组标题 "Hack Solver" 需要视觉上与普通任务区分，添加 ☒ 标记标识其为分组；子任务缩进 4 空格过深，影响菜单阅读的层次感。
-
-### 行为差异
-
-| 场景 | 修改前 | 修改后 |
-|------|--------|--------|
-| 分组标题前缀 | 无复选框 | ☒ 复选框（对齐父任务） |
-| 分组标题颜色 | C_GRAY | 默认终端色（与其他任务名一致） |
-| 子任务缩进 | PAD + 4 空格 | PAD + 2 空格 |
-
-### 系统影响
-- 仅影响 TUI 菜单渲染视觉，无逻辑或配置变更
-
-### 关键问题
-- ☒ 与 ☐ 缩进需在同一列对齐，分组标题前缀与父任务完全一致（`PAD + 符号 + 2 空格`）
-- 子任务缩进保留 2 空格差异，确保层次可辨识同时不过深
-
----
-
-## 26w18l
-
-### 修改范围
-- `tasks/hack_solver_connect_host/task.py` — 新增 `_init_display`、`_render_grid_row`、`_render_grid_rows` 三个方法；`_set_status_line` 替换为 `_set_display_status`；创建 8 行网格占位符 + 1 行状态行显示架构；后续又完全移除状态行，改为纯网格显示；`_clear_display` 增加清空旧显式行内容避免重试时残留；移除 `_attempt_hack` 入口的提前 `_clear_display()`
-- `core/__init__.py` — `_INJECT_SYMBOLS` 新增 `C_HIGHLIGHT` 注入
-- `core/log_buffer.py` — 新增 `set_log_dir()`、`_ensure_log_file()`、`_rotate_logs()` 方法；`add()` 内同步写入纯文本日志文件；`_ANSI_RE` 正则剥离颜色码；`_max_log_files = 5` 自动轮替
-- `core/task_runner.py` — 移除 `run_once` 任务首次未检测到 trigger 就停用的提前失败逻辑，删除 `_run_once_checked` 变量及相关引用
-- `main.py` — 新增 `signal.signal(signal.SIGINT, signal.SIG_IGN)` 阻止 Ctrl+C 退出；`getwch()` 中显式吞掉 `\x1b`（Esc 键）；调用 `log_buffer._log_buffer.set_log_dir()` 初始化日志目录
-- `locales/zh_CN.json` — 新增 `hack.hack_solver_connect_host.game_start`、`game_over` 翻译键
-- `locales/en_US.json` — 同上
-- `locales/zh_TW.json` — 同上
-- `.gitignore` — 新增 `logs/`
-
-### 原因与背景
-1. 连接主机破解回显仅有一行状态文本（"准备寻路…"→"R1C3→R1C2 w→…"），用户看不到完整 8×10 网格，无法直观了解破解进度。需要类似电压连线的多行面板实时刷新方式
-2. `run_once = True` 的任务在首次扫描未发现 trigger 时立即停用，导致用户必须在游戏内出现黑客图标后才能去菜单开启任务。正确行为应为：开启任务→持续扫描→检测到图标→执行→完成→停用
-3. 用户可能误按 Ctrl+C 或 Esc 导致程序退出，需要防护
-4. 日志仅在内存中，程序退出后无法回溯排查问题
-
-### 行为差异
-
-| 场景 | 修改前 | 修改后 |
-|------|--------|--------|
-| 连接主机破解回显 | 单行状态文本原地刷新 | 游戏开始→目标 Host→8 行网格（光标高亮实时刷新）→游戏结束，网格始终可见 |
-| 连接主机光标高亮 | 无高亮 | 光标覆盖的 4 个单元格 `C_HIGHLIGHT` 反色背景 |
-| 连接主机状态行 | 持续显示"已对位目标 (第N次)"、"R1C1→R2C3 w→(3/5)"等 | 已移除，仅保留网格 |
-| 连接主机重试时旧显示 | 残留空行（仅时间戳） | `_clear_display` 清空旧显示行内容，避免重试时残留 |
-| 连接主机新一轮触发时 | 立即清空上次显示（可能在识别失败后只看到空行） | 等 `_init_display` 创建新显示时才清旧，失败时保持上次成功结果 |
-| `run_once` 任务开启后 | 首次扫描无 trigger 即停用 | 持续扫描直到检测到 trigger 并完成执行后才停用 |
-| 日志持久化 | 内存中，退出即丢失 | 实时写入 `logs/session_*.log`，剥离 ANSI 颜色码为纯文本，保留最近 5 个文件 |
-| Ctrl+C / Esc | 退出程序 | 被忽略，无法退出 |
-
-### 系统影响
-- 连接主机回显从 1 行变为 10 行（2 固定行 + 8 网格行），占用更多日志缓冲空间，但在 `_log_buffer` 200 行上限内有余量
-- `C_HIGHLIGHT` 注入到所有 task.py 模块，现有任务无影响，新任务可直接使用
-- `_run_once_checked` 已从 `TaskRunner.__init__`、`start()`、`reload()` 三处移除
-- 日志文件 `logs/` 已加入 `.gitignore`，不影响版本控制
-- `signal.SIG_IGN` 在主线程注册，全局生效，任务线程不受影响
-
-### 关键问题
-- 增量刷新初版使用 XOR 计算高亮行变化，仅更新"高亮状态改变"的行。但光标同行内移动时高亮行集合不变（XOR 为空），网格不更新。修复为 union（`|`），始终刷新所有高亮行
-- `C_HIGHLIGHT` 定义在 `core/renderer.py` 但未注入到 task 模块全局符号表，直接使用会 `NameError`。已补入 `_INJECT_SYMBOLS`
-- `_attempt_hack` 入口调用 `_clear_display()` 在新一轮触发时立即清空上次成功破解的回显，若新一轮识别失败则只留空行。修复为移除此调用，`_init_display` 创建新显示时自行清旧
-- `_init_display` 内 `_log_buffer.add(target_detected)` 与旧代码中独立的 `_log_buffer.add(target_detected)` 导致目标 Host 行重复出现。已移除独立调用
-
----
-
-## 26w19b
-
-### 修改范围
-- `locales/zh_CN.json` — `step.trigger.close_game_at_results` 翻译键：`任务结束` → `检测到任务结束`
-- `locales/zh_TW.json` — `step.trigger.close_game_at_results` 翻译键：`任務結束` → `檢測到任務結束`
-- `locales/en_US.json` — `step.trigger.close_game_at_results` 翻译键：`Mission End` → `Mission End Detected`
-- `tasks/close_game_at_results/task.py` — 成功退出游戏回显包裹 `C_GREEN` / `C_RESET` 绿色 ANSI 颜色码
-
-### 原因与背景
-1. 任务结束退出游戏的 trigger 检测回显文本为"任务结束"，语义不够明确，用户希望强调是"检测到"任务结束画面才触发后续退出流程
-2. "已成功退出游戏"回显使用默认终端色，在日志流中不够醒目，用户要求改为绿色以突出成功状态
-
-### 行为差异
-
-| 场景 | 修改前 | 修改后 |
-|------|--------|--------|
-| trigger 检测回显 | `[任务结束退出游戏] 任务结束` | `[任务结束退出游戏] 检测到任务结束` |
-| 成功退出回显颜色 | 默认终端色 | 绿色（`C_GREEN`） |
-
-### 系统影响
-- 仅影响 `close_game_at_results` 任务的日志回显文本和颜色，无逻辑或配置变更
-- `C_GREEN` 已通过 `_INJECT_SYMBOLS` 注入到 task 模块全局符号表，直接使用无需额外 import
-
-### 关键问题
-- 翻译键需在三语言文件中同步更新，避免键名不同步导致回退到键名原文
-
----
-
-## 26w19a
-
-### 修改范围
-- `core/task_runner.py` — `stop()` 新增 `_reset_state()` 调用，重置 `_sequence_started`、`_current_step`、`_timeout_count`、`_last_confidence`
-- `core/task_runner.py` — 提取 `_reset_state()` 共用方法
-- `core/task_runner.py` — `_disable_and_stop_in_config()` 不再调用 `stop()`，改为直接设置 `_running=False` + `_status="stopped"` + `_reset_state()`，避免工作线程内 `join` 自身导致 `RuntimeError`
-- `tasks/hack_solver_voltlab/global/grid.json` — `animation_delay_ms` 3000→2500
-
-### 原因与背景
-1. 连接主机任务（`run_once=True`）执行完成后自动禁用，用户再次启用时，`_sequence_started` 仍为 `True`，导致任务跳过 trigger 检测阶段直接进入步骤执行。游戏画面已无黑客小游戏，`_read_target_host` 返回空列表，输出"目标识别失败"，循环 5 次后返回 `False`，`run_once` 机制再次禁用任务，用户无法再次启动
-2. `_disable_and_stop_in_config()` 在工作线程内部调用 `stop()`，`stop()` 执行 `self._thread.join(timeout=3)`，当前线程试图等待自己结束，触发 `RuntimeError: cannot join current thread`
-3. 电压连线配对后等待间隔 3 秒，用户反馈过长，要求缩短为 2.5 秒
-
-### 行为差异
-
-| 场景 | 修改前 | 修改后 |
-|------|--------|--------|
-| 连接主机重新启用后 | `_sequence_started=True` 残留，跳过 trigger 检测，直接进入步骤执行，输出"目标识别失败"后自动禁用 | `_sequence_started=False`，正常进入 trigger 等待阶段，静静扫描直到检测到黑客图标 |
-| `run_once` 任务执行完成后 | `_sequence_started` 保持 `True` | `_sequence_started` 重置为 `False` |
-| `_disable_and_stop_in_config` 调用路径 | 调用 `stop()` → `join` 当前线程 → `RuntimeError` | 直接设置标志位和状态，不 `join`，让 `_run` 的 `while` 循环自然退出 |
-| 电压连线配对间隔 | 3.0 秒 | 2.5 秒 |
-
-### 系统影响
-- `_reset_state()` 提取为共用方法，`stop()` 和 `_disable_and_stop_in_config()` 均调用，确保状态重置逻辑一致
-- `voltlab` 同为 `run_once=True` 的 hack 任务，TaskRunner 修复后一并解决相同隐患
-- 其他循环任务（`bunker_fast_track_research`、`close_game_at_results`）在手动停用后再启用时，`_sequence_started` 也会被正确重置
-
-### 关键问题
-- `_disable_and_stop_in_config()` 与 `stop()` 的语义差异：`stop()` 用于外部调用（主线程），需要 `join` 等待线程结束；`_disable_and_stop_in_config()` 用于工作线程内部，只需设置标志让循环自然退出，不可 `join`
-- 状态重置必须在两个路径上都执行，否则重新启用任务时行为异常
-
----
-
-## 26w19c
-
-### 修改范围
-- `core/renderer.py` — `_truncate_visible()` 添加 `@lru_cache(maxsize=512)` 缓存装饰器
-- `main.py` — 主循环新增渲染跳过逻辑：无输入、无尺寸变化、无任务列表变化时每 5 帧渲染 1 次
-- `main.py` — 新增 `_last_task_keys`、`_last_task_lines`、`_last_term_w`、`_last_entries`、`_frame_counter` 状态缓存变量
-- `core/log_buffer.py` — 新增 `_pending_lines`、`_flush_interval`、`_last_flush` 批量写入机制；`add()` 改为追加到内存缓冲；新增 `_flush()` 方法批量写入文件
-
-### 原因与背景
-1. 用户反馈性能检测任务显示的 CPU 使用率会突然飙到 30% 后又归零，尽管没有消耗资源的任务在运行
-2. 主循环每帧固定 50fps（0.02s），即使没有任何变化也在持续重建菜单面板、截断日志行、写入磁盘，造成不必要的 CPU 开销
-3. `_truncate_visible()` 对每帧的每条日志逐字符扫描 Unicode 宽度，日志行数多时每帧遍历数千字符
-4. `log_buffer.add()` 每次调用都同步打开文件、写入一行、关闭文件，频繁日志输出时磁盘 I/O 成为瓶颈
-
-### 行为差异
-
-| 场景 | 修改前 | 修改后 |
-|------|--------|--------|
-| 日志行截断 | 每帧逐字符扫描，无缓存 | 相同内容和宽度直接命中缓存 |
-| 菜单面板重建 | 每帧强制重建 | 仅在有输入/尺寸变化/任务变化时重建，否则每 5 帧 1 次 |
-| 日志文件写入 | 每次 `add()` 同步写磁盘 | 缓冲到内存，每 1 秒批量 flush |
-| 静态状态 CPU | 持续 50fps 渲染循环 | 大部分时间跳过渲染，CPU 占用更平稳 |
-
-### 系统影响
-- `_truncate_visible` 的缓存使重复日志行的截断开销从 O(n) 字符扫描降为 O(1) 缓存查找
-- 主循环渲染频率从固定 50fps 变为动态：有交互时 50fps，静态时约 10fps
-- 日志批量写入减少文件系统调用频率，但异常退出时可能丢失最近 1 秒内未 flush 的日志
-- 所有使用 `log_buffer.add()` 的模块自动享受批量写入优化，无需改动
-
-### 关键问题
-- 缓存键为 `(s, max_width)` 元组，日志时间戳变化会导致缓存不命中，但同一帧内多条相同前缀的日志可共享缓存
-- 渲染跳过逻辑依赖 `_frame_counter % 5 == 0`，确保即使没有外部变化，日志刷新也不会延迟超过 0.1s
-- 批量写入的 `_flush_interval = 1.0` 秒是权衡：太短失去批量意义，太长增加丢失风险
+- 覆盖图匹配计算量大（absdiff 全图），高频扫描场景应优先考虑坐标采样方案
+- 日志批量写入（每 1 秒 flush），异常退出时可能丢失最近 1 秒内未 flush 的日志
