@@ -55,7 +55,7 @@ class Task(BaseTask):
 | 触发+步骤 | `{"overlay": "trigger"}` | `[{"overlay": "step1"}]` | 检测触发→按序执行→循环（如地堡加速） |
 | 触发+hack | `{"overlay": "trigger", "click": False}` | `[{"overlay": "hack", "action": "hack"}]` | 覆写 `execute_step` 调用自定义 solver |
 
-**`run_once` 机制**：任务执行完成后自动将 `enabled` 设为 `False` 并停止。适用于 hack solver 等一次性任务。开启后持续扫描直到检测到 trigger 并完成执行后才停用，首次扫描无 trigger 不会提前失败。
+**`run_once` 机制**：任务执行完成后自动将 `enabled` 设为 `False` 并停止。开启后持续扫描直到检测到 trigger 并完成执行后才停用，首次扫描无 trigger 不会提前失败。`run_once = False` 时任务循环运行，完成后回到扫描等待阶段。
 
 **`default_config` 机制**：Task 类定义 `default_config` 字典，`TaskRegistry.build_config()` 自动合并。新任务添加自定义配置项时只需在 Task 类定义 `default_config`，无需修改 config.py。
 
@@ -128,6 +128,8 @@ class Task(BaseTask):
 ### 游戏生命周期
 
 `GameLifecycleManager` 统一管理游戏进程生命周期：每 5 秒查询 1 次进程，使用 `threading.Event` 实现 `wait_for_state`，游戏退出后所有 runner 阻塞等待唤醒，游戏启动时广播 RUNNING 事件。避免 N 个任务各自每 2 秒独立轮询。
+
+**anti_afk 后台计时器**：通过 `GetForegroundWindow()` 检测游戏是否在前台。追踪 `_last_hwnd`，当 hwnd 变化（游戏重启）或变为 `None`（窗口消失）时重置计时器，确保只统计最近一次切到后台后的时长。
 
 ## 黑客求解器
 
